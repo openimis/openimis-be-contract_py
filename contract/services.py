@@ -1,9 +1,4 @@
-import xml.etree.ElementTree as ET
-from django.core.exceptions import PermissionDenied
 import core
-from django.db import connection, transaction
-
-from django.conf import settings
 
 
 @core.comparable
