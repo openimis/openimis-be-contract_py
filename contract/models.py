@@ -22,7 +22,7 @@ class Contract(core_models.UUIDVersionedModel):
 
     payment_due_date = fields.DateTimeField(db_column='PaymentDueDate')
     status = models.SmallIntegerField(db_column='Status')
-    payment_reference = models.CharField(db_column='PaymentReference')
+    payment_reference = models.CharField(db_column='PaymentReference', max_length=255)
 
     json_ext = FallbackJSONField(db_column='Json_ext', blank=True, null=True)
 
