@@ -17,6 +17,15 @@ class PolicyHolderContract(object):
     def amend(self, submit):
         pass
 
+    def create(self, contract):
+        pass
+
+    def update(self, contract):
+        pass
+
+    def delete(self, contract):
+        pass
+
 
 @core.comparable
 class PolicyHolderContractDetails(object):
@@ -40,4 +49,16 @@ class Payment(object):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
     def submit(self, payment):
+        pass
+
+    def create(self, payment):
+        pass
+
+    def update(self, payment):
+        pass
+
+    def delete(self, payment):
+        pass
+
+    def assign_credit_note(self, payment):
         pass
