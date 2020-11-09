@@ -86,7 +86,7 @@ def create_test_contract_contribution_plan_details(contribution_plan=None, polic
     object_data = {
         'version': 1,
         'contribution_plan': contribution_plan,
-        'policy':policy,
+        'policy': policy,
         'contract_details': contract_details,
         'json_ext': json.dumps("{}"),
         'date_created': datetime.date(2010, 10, 30),

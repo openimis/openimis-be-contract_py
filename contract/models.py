@@ -106,6 +106,17 @@ class ContractDetails(core_models.UUIDVersionedModel):
 
     objects = ContractDetailsManager()
 
+    @classmethod
+    def get_queryset(cls, queryset, user):
+        queryset = cls.filter_queryset(queryset)
+        if isinstance(user, ResolveInfo):
+            user = user.context.user
+        if settings.ROW_SECURITY and user.is_anonymous:
+            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY:
+            pass
+        return queryset
+
     class Meta:
         db_table = 'tblContractDetails'
 
@@ -142,6 +153,17 @@ class ContractContributionPlanDetails(core_models.UUIDVersionedModel):
                                      related_name="%(class)s_CreatedUUID", on_delete=models.deletion.DO_NOTHING)
 
     objects = ContractContributionPlanDetailsManager()
+
+    @classmethod
+    def get_queryset(cls, queryset, user):
+        queryset = cls.filter_queryset(queryset)
+        if isinstance(user, ResolveInfo):
+            user = user.context.user
+        if settings.ROW_SECURITY and user.is_anonymous:
+            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY:
+            pass
+        return queryset
 
     class Meta:
         db_table = 'tblContractContributionPlanDetails'
