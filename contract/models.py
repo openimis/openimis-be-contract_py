@@ -67,11 +67,7 @@ class ContractDetailsManager(models.Manager):
         return super(ContractDetailsManager, self).filter(*args, **kwargs)
 
 
-class ContractDetails(core_models.UUIDVersionedModel):
-    id = models.AutoField(db_column='ContractDetailsId', primary_key=True)
-    uuid = models.CharField(db_column='ContractDetailsUUID', max_length=36,
-                            default=uuid.uuid4, unique=True)
-
+class ContractDetails(core_models.HistoryModel):
     contract = models.ForeignKey(Contract, db_column="ContractUUID",
                                       on_delete=models.deletion.DO_NOTHING)
     policy_holder_insuree = models.ForeignKey(PolicyHolderInsuree, db_column='PolicyHolderInsureeUUID',
@@ -80,17 +76,7 @@ class ContractDetails(core_models.UUIDVersionedModel):
                                                  db_column='ContributionPlanBundleUUID',
                                                  on_delete=models.deletion.DO_NOTHING)
 
-    json_ext = FallbackJSONField(db_column='Json_ext', blank=True, null=True)
     json_param = FallbackJSONField(db_column='Json_param', blank=True, null=True)
-    json_param_history = FallbackJSONField(db_column='Json_param_history', blank=True, null=True)
-
-    date_created = fields.DateTimeField(db_column="DateCreated")
-    date_updated = fields.DateTimeField(db_column="DateUpdated", null=True)
-
-    user_updated = models.ForeignKey(core_models.User, db_column="UserUpdatedUUID",
-                                     related_name="%(class)s_UpdatedUUID", on_delete=models.deletion.DO_NOTHING)
-    user_created = models.ForeignKey(core_models.User, db_column="UserCreatedUUID", null=True,
-                                     related_name="%(class)s_CreatedUUID", on_delete=models.deletion.DO_NOTHING)
 
     objects = ContractDetailsManager()
 
@@ -107,12 +93,7 @@ class ContractContributionPlanDetailsManager(models.Manager):
         return super(ContractContributionPlanDetailsManager, self).filter(*args, **kwargs)
 
 
-class ContractContributionPlanDetails(core_models.UUIDVersionedModel):
-    id = models.AutoField(db_column='ContractContributionPlanDetailsId', primary_key=True)
-    uuid = models.CharField(db_column='ContractContributionPlanDetailsUUID', max_length=36,
-                            default=uuid.uuid4, unique=True)
-
-    version = models.IntegerField()
+class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
     contribution_plan = models.ForeignKey(ContributionPlan, db_column='ContributionPlanUUID',
                                           on_delete=models.deletion.DO_NOTHING)
     policy = models.ForeignKey(Policy, db_column='PolicyUUID',
@@ -120,25 +101,7 @@ class ContractContributionPlanDetails(core_models.UUIDVersionedModel):
     contract_details = models.ForeignKey(ContractDetails, db_column='ContractDetailsUUID',
                                          on_delete=models.deletion.DO_NOTHING)
 
-    json_ext = FallbackJSONField(db_column='Json_ext', blank=True, null=True)
-    date_created = fields.DateTimeField(db_column="DateCreated")
-    date_updated = fields.DateTimeField(db_column="DateUpdated", null=True)
-
-    user_updated = models.ForeignKey(core_models.User, db_column="UserUpdatedUUID",
-                                     related_name="%(class)s_UpdatedUUID", on_delete=models.deletion.DO_NOTHING)
-    user_created = models.ForeignKey(core_models.User, db_column="UserCreatedUUID", null=True,
-                                     related_name="%(class)s_CreatedUUID", on_delete=models.deletion.DO_NOTHING)
-
     objects = ContractContributionPlanDetailsManager()
 
     class Meta:
         db_table = 'tblContractContributionPlanDetails'
-
-
-class ContractMutation(core_models.UUIDModel):
-    contract = models.ForeignKey(Contract, models.DO_NOTHING, related_name='mutations')
-
-    mutation = models.ForeignKey(core_models.MutationLog, models.DO_NOTHING, related_name='contract')
-
-    class Meta:
-        db_table = "contract_ContractMutation"
