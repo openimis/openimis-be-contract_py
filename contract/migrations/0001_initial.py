@@ -14,7 +14,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('contribution_plan', '0001_initial'),
-        ('core', '0027_auto_20201120_1336'),
     ]
 
     operations = [

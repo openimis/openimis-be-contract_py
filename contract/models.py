@@ -19,34 +19,16 @@ class ContractManager(models.Manager):
         return super(ContractManager, self).filter(*args, **kwargs)
 
 
-class Contract(core_models.UUIDVersionedModel):
-    id = models.AutoField(db_column='ContractId', primary_key=True)
-    uuid = models.CharField(db_column='ContractUUID', max_length=36, default=uuid.uuid4, unique=True)
-    version = models.IntegerField()
-
+class Contract(core_models.HistoryBusinessModel):
     policy_holder = models.ForeignKey(PolicyHolder, db_column="PolicyHolderUUID",
                                       on_delete=models.deletion.DO_NOTHING)
-
     amount_notified = models.FloatField(db_column='AmountNotified')
     amount_rectified = models.FloatField(db_column='AmountRectified')
     amount_due = models.FloatField(db_column='AmountDue')
-
-    payment_due_date = fields.DateTimeField(db_column='PaymentDueDate')
-    status = models.SmallIntegerField(db_column='Status')
+    date_approved = fields.DateTimeField(db_column='DateApproved')
+    date_payment_due = fields.DateField(db_column='DatePaymentDue')
+    state = models.SmallIntegerField(db_column='State')
     payment_reference = models.CharField(db_column='PaymentReference', max_length=255)
-
-    json_ext = FallbackJSONField(db_column='Json_ext', blank=True, null=True)
-
-    date_created = fields.DateTimeField(db_column="DateCreated")
-    date_updated = fields.DateTimeField(db_column="DateUpdated", null=True)
-
-    user_updated = models.ForeignKey(core_models.User, db_column="UserUpdatedUUID",
-                                     related_name="%(class)s_UpdatedUUID", on_delete=models.deletion.DO_NOTHING)
-    user_created = models.ForeignKey(core_models.User, db_column="UserCreatedUUID", null=True,
-                                     related_name="%(class)s_CreatedUUID", on_delete=models.deletion.DO_NOTHING)
-
-    contract_from = fields.DateTimeField(db_column="ContractFrom")
-    contract_to = fields.DateTimeField("ContractTo", null=True)
 
     objects = ContractManager()
 
@@ -64,10 +46,16 @@ class Contract(core_models.UUIDVersionedModel):
     class Meta:
         db_table = 'tblContract'
 
-    STATUS_REJECTED = 1
-    STATUS_ENTERED = 2
-    STATUS_SUBMITTED = 4
-    STATUS_PROCESSED = 8
+    STATE_REQUEST_FOR_INFORMATION = 1
+    STATE_DRAFT = 2
+    STATE_OFFER = 3
+    STATE_NEGOTIABLE = 4
+    STATE_EXECUTABLE = 5
+    STATE_ADDENDUM = 6
+    STATE_EFFECTIVE = 7
+    STATE_EXECUTED = 8
+    STATE_DISPUTED = 9
+    STATE_TERMINATED = 10
 
 
 class ContractDetailsManager(models.Manager):
