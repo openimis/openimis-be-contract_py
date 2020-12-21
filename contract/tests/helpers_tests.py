@@ -1,8 +1,6 @@
 from functools import lru_cache
 from unittest import TestCase
 
-from contribution_plan.tests import create_test_contribution_plan_details
-
 from .helpers import *
 from ..models import ContractContributionPlanDetails
 
@@ -14,25 +12,25 @@ class HelpersTest(TestCase):
 
     def test_create_test_contract(self):
         contract = self.__create_test_contract()
-        db_contract = Contract.objects.filter(uuid=contract.uuid).first()
+        db_contract = Contract.objects.filter(id=contract.uuid).first()
         self.assertEqual(db_contract, contract, "Failed to create contract in helper")
 
     def test_create_test_contract_custom(self):
         contract = self.__create_test_contract(custom=True)
-        db_contract = Contract.objects.filter(uuid=contract.uuid).first()
+        db_contract = Contract.objects.filter(id=contract.uuid).first()
         params = self.__custom_contract_params
         self.assertEqual(db_contract.version, params['version'])
         self.assertEqual(db_contract.policy_holder, params['policy_holder'])
-        self.assertEqual(db_contract.status, params['status'])
+        self.assertEqual(db_contract.state, params['state'])
 
     def test_create_test_contract_details(self):
         contract_details = self.__create_test_contract_details()
-        db_contract_details = ContractDetails.objects.filter(uuid=contract_details.uuid).first()
+        db_contract_details = ContractDetails.objects.filter(id=contract_details.uuid).first()
         self.assertEqual(db_contract_details, contract_details, "Failed to create contract details in helper")
 
     def test_create_test_contract_details_custom(self):
         contract_details = self.__create_test_contract_details(custom=True)
-        db_contract_details = ContractDetails.objects.filter(uuid=contract_details.uuid).first()
+        db_contract_details = ContractDetails.objects.filter(id=contract_details.uuid).first()
         params = self.__custom_contract_details_params
 
         self.assertEqual(db_contract_details.contract, params['contract'])
@@ -42,7 +40,7 @@ class HelpersTest(TestCase):
     def test_create_test_contract_contribution_plan_details(self):
         contract_contribution_plan_details = self.__create_test_contract_contribution_plan_details()
         db_contract_contribution_plan_details = ContractContributionPlanDetails.objects\
-            .filter(uuid=contract_contribution_plan_details.uuid).first()
+            .filter(id=contract_contribution_plan_details.uuid).first()
         self.assertEqual(db_contract_contribution_plan_details, 
                          contract_contribution_plan_details,
                          "Failed to create contract contribution plan details in helper")
@@ -50,7 +48,7 @@ class HelpersTest(TestCase):
     def test_create_test_contract_contribution_plan_details_custom(self):
         contract_contribution_plan_details = self.__create_test_contract_contribution_plan_details(custom=True)
         db_contract_contribution_plan_details = ContractContributionPlanDetails.objects\
-            .filter(uuid=contract_contribution_plan_details.uuid).first()
+            .filter(id=contract_contribution_plan_details.uuid).first()
         params = self.__custom_contract_contribution_plan_details_params
         self.assertEqual(db_contract_contribution_plan_details.contribution_plan, params['contribution_plan'])
         self.assertEqual(db_contract_contribution_plan_details.contract_details, params['contract_details'])
@@ -61,7 +59,7 @@ class HelpersTest(TestCase):
         return {
             'version': 2,
             'policy_holder': create_test_policy_holder(custom_props={'version': 2}),
-            'status': -1,
+            'state': 1,
         }
 
     @property

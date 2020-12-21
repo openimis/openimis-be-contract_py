@@ -22,13 +22,15 @@ class ContractManager(models.Manager):
 class Contract(core_models.HistoryBusinessModel):
     policy_holder = models.ForeignKey(PolicyHolder, db_column="PolicyHolderUUID",
                                       on_delete=models.deletion.DO_NOTHING)
-    amount_notified = models.FloatField(db_column='AmountNotified')
-    amount_rectified = models.FloatField(db_column='AmountRectified')
-    amount_due = models.FloatField(db_column='AmountDue')
-    date_approved = fields.DateTimeField(db_column='DateApproved')
-    date_payment_due = fields.DateField(db_column='DatePaymentDue')
-    state = models.SmallIntegerField(db_column='State')
-    payment_reference = models.CharField(db_column='PaymentReference', max_length=255)
+    code = models.CharField(db_column='Code', max_length=255, null=False)
+    amount_notified = models.FloatField(db_column='AmountNotified', blank=True, null=True)
+    amount_rectified = models.FloatField(db_column='AmountRectified', blank=True, null=True)
+    amount_due = models.FloatField(db_column='AmountDue', blank=True, null=True)
+    date_approved = fields.DateTimeField(db_column='DateApproved', blank=True, null=True)
+    date_payment_due = fields.DateField(db_column='DatePaymentDue', blank=True, null=True)
+    state = models.SmallIntegerField(db_column='State', blank=True, null=True)
+    payment_reference = models.CharField(db_column='PaymentReference', max_length=255, blank=True, null=True)
+    amendment = models.IntegerField(db_column='Amendment', blank=True, null=True)
 
     objects = ContractManager()
 

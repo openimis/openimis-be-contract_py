@@ -15,30 +15,26 @@ from policyholder.tests.helpers import create_test_policy_holder, create_test_po
 def create_test_contract(policy_holder=None, custom_props={}):
     if not policy_holder:
         policy_holder = create_test_policy_holder()
-        policy_holder.save()
-    pass
 
     user = __get_or_create_simple_contract_user()
 
     object_data = {
-            'version': 1,
+            'code': "CON",
             'policy_holder': policy_holder,
             'amount_notified': 0,
             'amount_rectified': 0,
             'amount_due': 0,
-            'payment_due_date': datetime.date(2011, 10, 31),
-            'status': 1,
+            'date_payment_due': datetime.date(2011, 10, 31),
+            'state': 1,
             'payment_reference': "Payment Reference",
             'json_ext': json.dumps("{}"),
-            'date_created': datetime.date(2010, 10, 30),
-            'date_updated': datetime.date(2010, 10, 31),
-            'user_updated':  user,
-            'user_created':  user,
-            'contract_from': datetime.date(2010, 10, 30),
-            'contract_to': None,
             **custom_props
     }
-    return Contract.objects.create(**object_data)
+
+    contract = Contract(**object_data)
+    contract.save(username=user.username)
+
+    return contract
 
 
 def create_test_contract_details(contract=None, policy_holder_insuree=None,
@@ -57,16 +53,14 @@ def create_test_contract_details(contract=None, policy_holder_insuree=None,
         'contract': contract,
         'policy_holder_insuree': policy_holder_insuree,
         'contribution_plan_bundle': contribution_plan_bundle,
-        'json_ext': json.dumps("{}"),
         'json_param': json.dumps("{}"),
-        'json_param_history': json.dumps("{}"),
-        'date_created': datetime.date(2010, 10, 30),
-        'date_updated': datetime.date(2010, 10, 31),
-        'user_updated': user,
-        'user_created': user,
         **custom_props
     }
-    return ContractDetails.objects.create(**object_data)
+
+    contract_details = ContractDetails(**object_data)
+    contract_details.save(username=user.username)
+
+    return contract_details
 
 
 def create_test_contract_contribution_plan_details(contribution_plan=None, policy=None,
@@ -84,22 +78,19 @@ def create_test_contract_contribution_plan_details(contribution_plan=None, polic
 
     user = __get_or_create_simple_contract_user()
     object_data = {
-        'version': 1,
         'contribution_plan': contribution_plan,
         'policy':policy,
         'contract_details': contract_details,
         'json_ext': json.dumps("{}"),
-        'date_created': datetime.date(2010, 10, 30),
-        'date_updated': datetime.date(2010, 10, 31),
-        'user_updated': user,
-        'user_created': user,
         **custom_props
     }
 
-    return ContractContributionPlanDetails.objects.create(**object_data)
+    contract_contribution_plan_details = ContractContributionPlanDetails(**object_data)
+    contract_contribution_plan_details.save(username=user.username)
+
+    return contract_contribution_plan_details
 
 
 def __get_or_create_simple_contract_user():
-    user, _ = User.objects.get_or_create(username='contract_user',
-                                         i_user=InteractiveUser.objects.first())
+    user = User.objects.get(username="admin")
     return user
