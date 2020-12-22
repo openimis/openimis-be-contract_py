@@ -7,6 +7,7 @@ from core import models as core_models, fields
 from graphql import ResolveInfo
 from jsonfallback.fields import FallbackJSONField
 from policy.models import Policy
+from contribution.models import Premium
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
 
 
@@ -30,7 +31,7 @@ class Contract(core_models.HistoryBusinessModel):
     date_payment_due = fields.DateField(db_column='DatePaymentDue', blank=True, null=True)
     state = models.SmallIntegerField(db_column='State', blank=True, null=True)
     payment_reference = models.CharField(db_column='PaymentReference', max_length=255, blank=True, null=True)
-    amendment = models.IntegerField(db_column='Amendment', blank=True, null=True)
+    amendment = models.IntegerField(db_column='Amendment', blank=False, null=False)
 
     objects = ContractManager()
 
@@ -102,6 +103,8 @@ class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
                                on_delete=models.deletion.DO_NOTHING)
     contract_details = models.ForeignKey(ContractDetails, db_column='ContractDetailsUUID',
                                          on_delete=models.deletion.DO_NOTHING)
+    contribution = models.ForeignKey(Premium, db_column='ContributionId',
+                                         on_delete=models.deletion.DO_NOTHING, blank=True, null=True)
 
     objects = ContractContributionPlanDetailsManager()
 
