@@ -22,7 +22,7 @@ class ContractManager(models.Manager):
 class Contract(core_models.HistoryBusinessModel):
     policy_holder = models.ForeignKey(PolicyHolder, db_column="PolicyHolderUUID",
                                       on_delete=models.deletion.DO_NOTHING)
-    code = models.CharField(db_column='Code', max_length=255, null=False)
+    code = models.CharField(db_column='Code', max_length=64, null=False)
     amount_notified = models.FloatField(db_column='AmountNotified', blank=True, null=True)
     amount_rectified = models.FloatField(db_column='AmountRectified', blank=True, null=True)
     amount_due = models.FloatField(db_column='AmountDue', blank=True, null=True)
