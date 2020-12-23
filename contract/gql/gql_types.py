@@ -54,4 +54,4 @@ class ContractDetailsGQLType(DjangoObjectType):
 
         @classmethod
         def get_queryset(cls, queryset, info):
-            return Contract.get_queryset(queryset, info)
+            return ContractDetails.get_queryset(queryset, info)
