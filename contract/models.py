@@ -8,7 +8,8 @@ from graphql import ResolveInfo
 from jsonfallback.fields import FallbackJSONField
 from policy.models import Policy
 from contribution.models import Premium
-from policyholder.models import PolicyHolder, PolicyHolderInsuree
+from policyholder.models import PolicyHolder
+from insuree.models import Insuree
 
 
 class ContractManager(models.Manager):
@@ -21,9 +22,9 @@ class ContractManager(models.Manager):
 
 
 class Contract(core_models.HistoryBusinessModel):
+    code = models.CharField(db_column='Code', max_length=64, null=False)
     policy_holder = models.ForeignKey(PolicyHolder, db_column="PolicyHolderUUID",
                                       on_delete=models.deletion.DO_NOTHING)
-    code = models.CharField(db_column='Code', max_length=64, null=False)
     amount_notified = models.FloatField(db_column='AmountNotified', blank=True, null=True)
     amount_rectified = models.FloatField(db_column='AmountRectified', blank=True, null=True)
     amount_due = models.FloatField(db_column='AmountDue', blank=True, null=True)
@@ -31,7 +32,7 @@ class Contract(core_models.HistoryBusinessModel):
     date_payment_due = fields.DateField(db_column='DatePaymentDue', blank=True, null=True)
     state = models.SmallIntegerField(db_column='State', blank=True, null=True)
     payment_reference = models.CharField(db_column='PaymentReference', max_length=255, blank=True, null=True)
-    amendment = models.IntegerField(db_column='Amendment', blank=False, null=False)
+    amendment = models.IntegerField(db_column='Amendment', blank=False, null=False, default=0)
 
     objects = ContractManager()
 
@@ -73,7 +74,7 @@ class ContractDetailsManager(models.Manager):
 class ContractDetails(core_models.HistoryModel):
     contract = models.ForeignKey(Contract, db_column="ContractUUID",
                                       on_delete=models.deletion.DO_NOTHING)
-    policy_holder_insuree = models.ForeignKey(PolicyHolderInsuree, db_column='PolicyHolderInsureeUUID',
+    insuree = models.ForeignKey(Insuree, db_column='InsureeID',
                                               on_delete=models.deletion.DO_NOTHING)
     contribution_plan_bundle = models.ForeignKey(ContributionPlanBundle,
                                                  db_column='ContributionPlanBundleUUID',
