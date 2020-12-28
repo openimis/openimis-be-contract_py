@@ -34,7 +34,7 @@ class HelpersTest(TestCase):
         params = self.__custom_contract_details_params
 
         self.assertEqual(db_contract_details.contract, params['contract'])
-        self.assertEqual(db_contract_details.policy_holder_insuree, params['policy_holder_insuree'])
+        self.assertEqual(db_contract_details.insuree, params['insuree'])
         self.assertEqual(db_contract_details.contribution_plan_bundle, params['contribution_plan_bundle'])
 
     def test_create_test_contract_contribution_plan_details(self):
@@ -68,7 +68,7 @@ class HelpersTest(TestCase):
         return {
             'contract': self.__create_test_contract(True),
             'contribution_plan_bundle': create_test_contribution_plan_bundle(custom_props={'version': 3}),
-            'policy_holder_insuree': create_test_policy_holder_insuree()
+            'insuree': create_test_insuree()
         }
 
     @property
