@@ -2,6 +2,7 @@ import graphene
 from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
+from insuree.schema import InsureeGQLType
 from policyholder.gql.gql_types import PolicyHolderInsureeGQLType
 from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
 #from contribution.gql_queries import PremiumGQLType
@@ -44,7 +45,7 @@ class ContractDetailsGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
         filter_fields = {
             "id": ["exact"],
-            **prefix_filterset("policy_holder_insuree__", PolicyHolderInsureeGQLType._meta.filter_fields),
+            **prefix_filterset("insuree__", InsureeGQLType._meta.filter_fields),
             **prefix_filterset("contribution_plan_bundle__", ContributionPlanBundleGQLType._meta.filter_fields),
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
             "date_updated": ["exact", "lt", "lte", "gt", "gte"],
@@ -66,7 +67,16 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
         filter_fields = {
             "id": ["exact"],
-            **prefix_filterset("policy_holder_insuree__", PolicyHolderInsureeGQLType._meta.filter_fields),
             **prefix_filterset("contribution_plan__", ContributionPlanGQLType._meta.filter_fields),
             #**prefix_filterset("contribution__", PremiumGQLType._meta.filter_fields),
+            "date_created": ["exact", "lt", "lte", "gt", "gte"],
+            "date_updated": ["exact", "lt", "lte", "gt", "gte"],
+            "is_deleted": ["exact"],
+            "version": ["exact"],
         }
+
+        connection_class = ExtendedConnection
+
+        @classmethod
+        def get_queryset(clscls, queryset, info):
+            return ContractContributionPlanDetails.get_queryset(queryset, info)

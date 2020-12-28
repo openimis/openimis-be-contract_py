@@ -100,7 +100,7 @@ class ContractContributionPlanDetailsManager(models.Manager):
 class ContractContributionPlanDetails(core_models.HistoryModel):
     contribution_plan = models.ForeignKey(ContributionPlan, db_column='ContributionPlanUUID',
                                           on_delete=models.deletion.DO_NOTHING)
-    policy = models.ForeignKey(Policy, db_column='PolicyUUID',
+    policy = models.ForeignKey(Policy, db_column='PolicyID',
                                on_delete=models.deletion.DO_NOTHING)
     contract_details = models.ForeignKey(ContractDetails, db_column='ContractDetailsUUID',
                                          on_delete=models.deletion.DO_NOTHING)
