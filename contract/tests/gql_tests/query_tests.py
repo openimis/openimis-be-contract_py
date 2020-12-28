@@ -146,9 +146,7 @@ class ContractQueryTest(TestCase):
           }}
         }}
         '''
-        print(query)
         query_result = self.execute_query(query, context=context)
-        print(query_result)
         records = query_result[query_type]['edges']
         return records
 
@@ -157,7 +155,6 @@ class ContractQueryTest(TestCase):
             context = self.BaseTestContext()
 
         query_result = self.graph_client.execute(query, context=context)
-        print(query_result)
         query_data = query_result['data']
         return query_data
 
