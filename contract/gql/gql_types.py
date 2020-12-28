@@ -3,7 +3,8 @@ from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 from policyholder.gql.gql_types import PolicyHolderInsureeGQLType
-from contribution_plan.gql.gql_types import ContributionPlanBundleGQLType
+from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
+#from contribution.gql_queries import PremiumGQLType
 
 
 class ContractGQLType(DjangoObjectType):
@@ -14,8 +15,9 @@ class ContractGQLType(DjangoObjectType):
         filter_fields = {
             "id": ["exact"],
             "code": ["exact", "istartswith", "icontains", "iexact"],
-            #"amount_from":,
-            #"amount_to":,
+            "amount_notified": ["exact", "lt", "lte", "gt", "gte"],
+            "amount_rectified": ["exact", "lt", "lte", "gt", "gte"],
+            "amount_due": ["exact", "lt", "lte", "gt", "gte"],
             "date_payment_due": ["exact", "lt", "lte", "gt", "gte"],
             "state": ["exact"],
             "payment_reference": ["exact", "istartswith", "icontains", "iexact"],
@@ -55,3 +57,16 @@ class ContractDetailsGQLType(DjangoObjectType):
         @classmethod
         def get_queryset(cls, queryset, info):
             return ContractDetails.get_queryset(queryset, info)
+
+
+class ContractContributionPlanDetailsGQLType(DjangoObjectType):
+
+    class Meta:
+        model = ContractContributionPlanDetails
+        interfaces = (graphene.relay.Node,)
+        filter_fields = {
+            "id": ["exact"],
+            **prefix_filterset("policy_holder_insuree__", PolicyHolderInsureeGQLType._meta.filter_fields),
+            **prefix_filterset("contribution_plan__", ContributionPlanGQLType._meta.filter_fields),
+            #**prefix_filterset("contribution__", PremiumGQLType._meta.filter_fields),
+        }
