@@ -27,7 +27,7 @@ class Query(graphene.ObjectType):
     )
 
     def resolve_contract(selfself, info, **kwargs):
-
+        pass
 
 
 
