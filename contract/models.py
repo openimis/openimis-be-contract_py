@@ -97,7 +97,7 @@ class ContractContributionPlanDetailsManager(models.Manager):
         return super(ContractContributionPlanDetailsManager, self).filter(*args, **kwargs)
 
 
-class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
+class ContractContributionPlanDetails(core_models.HistoryModel):
     contribution_plan = models.ForeignKey(ContributionPlan, db_column='ContributionPlanUUID',
                                           on_delete=models.deletion.DO_NOTHING)
     policy = models.ForeignKey(Policy, db_column='PolicyUUID',
