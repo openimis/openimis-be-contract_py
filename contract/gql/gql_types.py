@@ -45,6 +45,7 @@ class ContractDetailsGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
         filter_fields = {
             "id": ["exact"],
+            **prefix_filterset("contract__", ContractGQLType._meta.filter_fields),
             **prefix_filterset("insuree__", InsureeGQLType._meta.filter_fields),
             **prefix_filterset("contribution_plan_bundle__", ContributionPlanBundleGQLType._meta.filter_fields),
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
@@ -67,6 +68,7 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
         filter_fields = {
             "id": ["exact"],
+            **prefix_filterset("contract_details__", ContractDetailsGQLType._meta.filter_fields),
             **prefix_filterset("contribution_plan__", ContributionPlanGQLType._meta.filter_fields),
             #**prefix_filterset("contribution__", PremiumGQLType._meta.filter_fields),
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
