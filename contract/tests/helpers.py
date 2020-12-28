@@ -37,13 +37,13 @@ def create_test_contract(policy_holder=None, custom_props={}):
     return contract
 
 
-def create_test_contract_details(contract=None, policy_holder_insuree=None,
+def create_test_contract_details(contract=None, insuree=None,
                                  contribution_plan_bundle=None, custom_props={}):
     if not contract:
         contract = create_test_contract()
 
-    if not policy_holder_insuree:
-        policy_holder_insuree = create_test_policy_holder_insuree()
+    if not insuree:
+        insuree = create_test_insuree()
 
     if not contribution_plan_bundle:
         contribution_plan_bundle = create_test_contribution_plan_bundle()
@@ -51,7 +51,7 @@ def create_test_contract_details(contract=None, policy_holder_insuree=None,
     user = __get_or_create_simple_contract_user()
     object_data = {
         'contract': contract,
-        'policy_holder_insuree': policy_holder_insuree,
+        'insuree': insuree,
         'contribution_plan_bundle': contribution_plan_bundle,
         'json_param': json.dumps("{}"),
         **custom_props
