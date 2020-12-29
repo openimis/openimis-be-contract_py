@@ -32,8 +32,12 @@ class ContractQueryTest(TestCase):
                 'amendment': 1
             }
         )
-        cls.test_contract_details = create_test_contract_details()
-        cls.test_contract_contribution_plan_details = create_test_contract_contribution_plan_details()
+        cls.test_contract_details = create_test_contract_details(
+            contract=cls.test_contract
+        )
+        cls.test_contract_contribution_plan_details = create_test_contract_contribution_plan_details(
+            contract_details=cls.test_contract_details
+        )
 
         cls.schema = Schema(
             query=contract_schema.Query,
@@ -248,6 +252,51 @@ class ContractQueryTest(TestCase):
         query_result = self.execute_query(query)
         result = query_result['contract']['edges']
         self.assertEqual(len(result), 0)
+
+    def test_find_contract_by_insuree(self):
+        details_insuree_uuid = self.test_contract_details.insuree.uuid
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                insuree: "{details_insuree_uuid}") {{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_id_and_state(self):
+        details_contract_state = self.test_contract.state
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                id: "{id}"
+                state: {details_contract_state}) {{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
 
     def test_find_contract_contribution_plan_details_by_contract_details_and_contribution_plan(self):
         details_contract_details_id = self.test_contract_contribution_plan_details.contract_details.id
@@ -603,6 +652,28 @@ class ContractQueryTest(TestCase):
         query_result = self.execute_query(query)
         result = query_result['contractContributionPlanDetails']['edges']
         self.assertEqual(len(result), 0)
+
+    def test_find_contract_contribution_plan_details_by_insuree(self):
+        details_insuree_uuid = self.test_contract_details.insuree.uuid
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                insuree: "{details_insuree_uuid}") {{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
 
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''

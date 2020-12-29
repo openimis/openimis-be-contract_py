@@ -12,7 +12,8 @@ class Query(graphene.ObjectType):
 
     contract = OrderedDjangoFilterConnectionField(
         ContractGQLType,
-        orderBy=graphene.List(of_type=graphene.String)
+        insuree=graphene.UUID(),
+        orderBy=graphene.List(of_type=graphene.String),
     )
 
     contract_details = OrderedDjangoFilterConnectionField(
@@ -22,13 +23,21 @@ class Query(graphene.ObjectType):
 
     contract_contribution_plan_details = OrderedDjangoFilterConnectionField(
         ContractContributionPlanDetailsGQLType,
-        insuree=graphene.Int(),
+        insuree=graphene.UUID(),
         contributionPlanBundle=graphene.UUID(),
         orderBy=graphene.List(of_type=graphene.String),
     )
 
     def resolve_contract(self, info, **kwargs):
         query = Contract.objects.all()
+
+        insuree = kwargs.get('insuree', None)
+
+        if insuree:
+            query = query.filter(
+                contractdetails__insuree__uuid=insuree
+            )
+
         return gql_optimizer.query(query.all(), info)
 
     def resolve_contract_details(self, info, **kwargs):
@@ -43,7 +52,7 @@ class Query(graphene.ObjectType):
 
         if insuree:
             query = query.filter(
-                contract_details__insuree__id=insuree
+                contract_details__insuree__uuid=insuree
             )
 
         if contribution_plan_bundle:
