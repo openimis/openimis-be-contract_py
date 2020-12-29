@@ -3,9 +3,8 @@ from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 from insuree.schema import InsureeGQLType
-from policyholder.gql.gql_types import PolicyHolderInsureeGQLType
 from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
-#from contribution.gql_queries import PremiumGQLType
+from contribution.gql_queries import PremiumGQLType
 
 
 class ContractGQLType(DjangoObjectType):
@@ -70,7 +69,7 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
             "id": ["exact"],
             **prefix_filterset("contract_details__", ContractDetailsGQLType._meta.filter_fields),
             **prefix_filterset("contribution_plan__", ContributionPlanGQLType._meta.filter_fields),
-            #**prefix_filterset("contribution__", PremiumGQLType._meta.filter_fields),
+            **prefix_filterset("contribution__", PremiumGQLType._meta.filter_fields),
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
             "date_updated": ["exact", "lt", "lte", "gt", "gte"],
             "is_deleted": ["exact"],

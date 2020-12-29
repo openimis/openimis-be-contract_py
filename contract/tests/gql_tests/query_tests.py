@@ -22,8 +22,16 @@ class ContractQueryTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.date_created = datetime.datetime.now()
         cls.test_contract = create_test_contract(
-            custom_props={'code': 'testContract'})
+            custom_props={
+                'code': 'testContract-'+str(cls.date_created),
+                'payment_reference': 'payment reference'+str(cls.date_created),
+                'amount_due': 450.99,
+                'date_valid_from':  datetime.date(2020, 1, 1),
+                'amendment': 1
+            }
+        )
         cls.test_contract_details = create_test_contract_details()
         cls.test_contract_contribution_plan_details = create_test_contract_contribution_plan_details()
 
@@ -62,13 +70,12 @@ class ContractQueryTest(TestCase):
         self.assertDictEqual(result[0]['node'], params)
 
     def test_find_contract_details_by_contract(self):
-        details_insuree_chf_id = self.test_contract_details.insuree.chf_id
         details_contract_id = self.test_contract_details.contract.id
         id = self.test_contract_details.id
         query = F'''
         {{
             contractDetails(
-                contract_Id:"{details_contract_id}"){{
+                contract_Id: "{details_contract_id}"){{
                 totalCount
                 edges {{
                   node {{
@@ -84,6 +91,164 @@ class ContractQueryTest(TestCase):
         converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
         self.assertEqual(UUID(converted_id), id)
 
+    def test_find_contract_details_by_id_and_insuree(self):
+        details_insuree_uuid = self.test_contract_details.insuree.uuid
+        id = self.test_contract_details.id
+        query = F'''
+        {{
+            contractDetails(
+                id: "{id}"
+                insuree_Uuid: "{details_insuree_uuid}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractDetails']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code(self):
+        code = self.test_contract.code
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code: "{code}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_payment_reference(self):
+        payment_reference = self.test_contract.payment_reference
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                paymentReference: "{payment_reference}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_amount_due(self):
+        code = self.test_contract.code
+        amount_due = self.test_contract.amount_due
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code:" {code}", amountDue: {amount_due}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_amount_due_greater(self):
+        code = self.test_contract.code
+        amount_due = self.test_contract.amount_due - 100
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code:" {code}", amountDue_Gte: {amount_due}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_amount_due_greater_equal(self):
+        code = self.test_contract.code
+        amount_due = self.test_contract.amount_due
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code:" {code}", amountDue_Gte: {amount_due}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_amound_due_lt(self):
+        code = self.test_contract.code
+        amount_due = self.test_contract.amount_due
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code:" {code}", amountDue_Lt: {amount_due}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges']
+        self.assertEqual(len(result), 0)
+
     def test_find_contract_contribution_plan_details_by_contract_details_and_contribution_plan(self):
         details_contract_details_id = self.test_contract_contribution_plan_details.contract_details.id
         details_contribution_plan_id = self.test_contract_contribution_plan_details.contribution_plan.id
@@ -91,8 +256,8 @@ class ContractQueryTest(TestCase):
         query = F'''
         {{
             contractContributionPlanDetails(
-                contractDetails_Id:"{details_contract_details_id}",
-                contributionPlan_Id:"{details_contribution_plan_id}") {{
+                contractDetails_Id: "{details_contract_details_id}",
+                contributionPlan_Id: "{details_contribution_plan_id}") {{
                 totalCount
                 edges {{
                   node {{
@@ -107,6 +272,337 @@ class ContractQueryTest(TestCase):
         result = query_result['contractContributionPlanDetails']['edges'][0]['node']
         converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
         self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_date_valid_from(self):
+        code = self.test_contract.code
+        date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code: "{code}", dateValidFrom: "{date_valid_from}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_date_valid_from_gte(self):
+        code = self.test_contract.code
+        date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code: "{code}", dateValidFrom_Gte: "{date_valid_from}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_date_valid_from_gt(self):
+        code = self.test_contract.code
+        date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code: "{code}", dateValidFrom_Gt: "{date_valid_from}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges']
+        self.assertEqual(len(result), 0)
+
+    def test_find_contract_by_contract_code_contains(self):
+        date = self.date_created
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code_Icontains: "{date}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_code_amendment(self):
+        code = self.test_contract.code
+        amendment = self.test_contract.amendment
+        id = self.test_contract.id
+        query = F'''
+        {{
+            contract(
+                code: "{code}", amendment: {amendment}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_by_contract_code_start_with(self):
+        query = F'''
+        {{
+            contract(
+                code_Istartswith: "testContract-"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contract']['edges']
+        self.assertGreater(len(result), 0)
+
+    def test_find_contracts_details_by_date_created(self):
+        date_created = str(self.test_contract_details.date_created).replace(' ', 'T')
+        id = self.test_contract_details.id
+        query = F'''
+        {{
+            contractDetails(
+                dateCreated: "{date_created}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractDetails']['edges'][0]["node"]
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contracts_details_by_date_updated(self):
+        date_updated = str(self.test_contract_details.date_updated).replace(' ', 'T')
+        id = self.test_contract_details.id
+        query = F'''
+        {{
+            contractDetails(
+                dateUpdated: "{date_updated}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractDetails']['edges'][0]["node"]
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_contribution_plan_details_by_date_created(self):
+        date_created = str(self.test_contract_contribution_plan_details.date_created).replace(' ', 'T')
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                dateCreated: "{date_created}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges'][0]["node"]
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_contribution_plan_details_by_date_created_gte(self):
+        date_created = str(self.test_contract_contribution_plan_details.date_created).replace(' ', 'T')
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                dateCreated_Gte: "{date_created}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges'][0]["node"]
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_contribution_plan_details_by_date_created_gt(self):
+        date_created = str(self.test_contract_contribution_plan_details.date_created).replace(' ', 'T')
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                dateCreated_Gt: "{date_created}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges']
+        self.assertEqual(len(result), 0)
+
+    def test_find_contract_contribution_plan_details_by_date_updated(self):
+        date_updated = str(self.test_contract_contribution_plan_details.date_updated).replace(' ', 'T')
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                dateUpdated: "{date_updated}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges'][0]["node"]
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_contribution_plan_details_by_id_and_contribution(self):
+        details_contribution_uuid = self.test_contract_contribution_plan_details.contribution.uuid
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                id: "{id}"
+                contribution_Uuid: "{details_contribution_uuid}"){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_contribution_plan_details_by_id_and_amount_in_contribution_gte(self):
+        details_contribution_amount = self.test_contract_contribution_plan_details.contribution.amount
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                id: "{id}"
+                contribution_Amount_Gte: {details_contribution_amount}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges'][0]['node']
+        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
+        self.assertEqual(UUID(converted_id), id)
+
+    def test_find_contract_contribution_plan_details_by_id_and_amount_in_contribution_gt(self):
+        details_contribution_amount = self.test_contract_contribution_plan_details.contribution.amount
+        id = self.test_contract_contribution_plan_details.id
+        query = F'''
+        {{
+            contractContributionPlanDetails(
+                id: "{id}"
+                contribution_Amount_Gt: {details_contribution_amount}){{
+                totalCount
+                edges {{
+                  node {{
+                    id
+                  }}
+                  cursor
+                }}
+          }}
+        }}
+        '''
+        query_result = self.execute_query(query)
+        result = query_result['contractContributionPlanDetails']['edges']
+        self.assertEqual(len(result), 0)
 
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
