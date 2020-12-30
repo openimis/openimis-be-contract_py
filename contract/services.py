@@ -9,6 +9,8 @@ from contract.models import Contract as ContractModel, \
     ContractDetails as ContractDetailsModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
 
+from policyholder.models import PolicyHolderInsuree
+
 
 def check_authentication(function):
     def wrapper(self, *args, **kwargs):
@@ -46,12 +48,14 @@ class Contract(object):
             c.save(username=self.user.username)
             uuid_string = str(c.id)
             contract_details["id"] = uuid_string
-            c = ContractDetailsModel(**contract_details)
             # check if the PH is set
             if contract["policy_holder"]:
                 # run service updateFromPHInsuree
-                # cd = ContractDetails(user=self.user)
-                # cd.updateFromPHInsuree()
+                phi = PolicyHolderInsuree.objects.get(id=contract["policy_holder"])
+                cd = ContractDetails(user=self.user)
+                result_update_from_phi = cd.update_from_ph_insuree(
+                    policy_holder_insuree=phi
+                )
 
             #save contract
             c.save(username=self.user.username)
@@ -79,9 +83,19 @@ class ContractDetails(object):
     def __init__(self, user):
         self.user = user
 
-    def updateFromPHInsuree(self, policy_holder_insuree):
-
-        pass
+    def update_from_ph_insuree(self, policy_holder_insuree):
+        try:
+            contract_details = ContractDetailsModel(
+                **{"insuree": policy_holder_insuree["insuree"],
+                "contribution_plan_bundle": policy_holder_insuree["contribution_plan_bundle"]
+            })
+            contract_details.save(self.user)
+            uuid_string = str(contract_details.id)
+            dict_representation = model_to_dict(contract_details)
+            dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
+        except Exception as exc:
+            return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
+        return _output_result_success(dict_representation=dict_representation)
 
 
 @core.comparable
