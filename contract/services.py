@@ -97,13 +97,7 @@ class ContractDetails(object):
     @check_authentication
     def update_from_ph_insuree(self, contract_details):
         try:
-            cd = ContractDetailsModel(
-                **{
-                    "contract": contract_details["contract"],
-                    "insuree": contract_details["insuree"],
-                    "contribution_plan_bundle": contract_details["policy_holder_insuree"]
-                }
-            )
+            cd = ContractDetailsModel(**contract_details)
             cd.save(self.user)
             uuid_string = str(contract_details.id)
             dict_representation = model_to_dict(contract_details)
