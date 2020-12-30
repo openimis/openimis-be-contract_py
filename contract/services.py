@@ -57,9 +57,6 @@ class Contract(object):
                     policy_holder_insuree=phi
                 )
 
-            #save contract
-            c.save(username=self.user.username)
-            uuid_string = str(c.id)
             dict_representation = model_to_dict(c)
             dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))
         except Exception as exc:
