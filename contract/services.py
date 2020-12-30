@@ -121,7 +121,7 @@ class ContractContributionPlanDetails(object):
             if save:
                 ccpd.save(self.user)
             uuid_string = str(contract_details.id)
-            dict_representation = model_to_dict(contract_details)
+            dict_representation = model_to_dict(ccpd)
             # temporary value until calculation module be developed
             dict_representation["total_amount"] = 250
         except Exception as exc:
