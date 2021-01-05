@@ -52,7 +52,7 @@ class Contract(object):
                     policy_holder=contract["policy_holder_id"],
                     contract_id=uuid_string
                 )
-                c.amount_rectified = total_amount
+                c.amount_notified = total_amount
                 c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
             dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))

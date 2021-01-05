@@ -40,7 +40,7 @@ class ServiceTestPolicyHolder(TestCase):
                  response['data']['code'],
                  response['data']['version'],
                  response['data']['amendment'],
-                 response['data']['amount_rectified'],
+                 response['data']['amount_notified'],
             )
         )
 
@@ -59,7 +59,7 @@ class ServiceTestPolicyHolder(TestCase):
             create_test_policy_holder_insuree(policy_holder=policy_holder, contribution_plan_bundle=contribution_plan_bundle)
 
         contract = {
-            'code': 'ETSSAA',
+            'code': 'TEST',
             'policy_holder_id': policy_holder.id
         }
         response = self.contract_service.create(contract)
@@ -68,7 +68,7 @@ class ServiceTestPolicyHolder(TestCase):
                  True,
                  "Ok",
                  "",
-                 "ETSSAA",
+                 "TEST",
                  0,
             ),
             (
