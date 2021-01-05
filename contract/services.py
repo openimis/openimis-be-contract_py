@@ -1,6 +1,7 @@
 import core
 import json
 
+from django.db.models.query import QuerySet
 from django.contrib.auth.models import AnonymousUser
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
@@ -35,46 +36,44 @@ class Contract(object):
     @check_authentication
     def create(self, contract):
         try:
-            # create contract
             c = ContractModel(**contract)
             c.state = ContractModel.STATE_DRAFT
+            c.json_ext = json.dumps(_save_json_external(
+                user_id=self.user.id,
+                datetime=core.datetime.datetime.now(),
+                message=""
+            ), cls=DjangoJSONEncoder)
             c.save(username=self.user.username)
             uuid_string = str(c.id)
-            date_updated = c.date_updated
             # check if the PH is set
-            if contract["policy_holder"]:
-                # run service updateFromPHInsuree
-                phi = PolicyHolderInsuree.objects.get(id=contract["policy_holder"])
-                cd = ContractDetails(user=self.user)
-                result_update_from_phi = cd.update_from_ph_insuree(
-                    contract_details={
-                        "contract_id": uuid_string,
-                        "insuree_id": phi.insuree.id,
-                        "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
-                    }
+            if "policy_holder_id" in contract:
+                #run services updateFromPHInsuree and Contract Valuation
+                total_amount = self.__services_update_from_ph_contract_valuation(
+                    policy_holder=contract["policy_holder_id"],
+                    contract_id=uuid_string
                 )
-                # get contribution plan
-                cp = ContributionPlanBundleDetails.objects.get(
-                    contribution_plan__id=phi.contribution_plan_bundle.id
-                )
-                ccpd = ContractContributionPlanDetails(user=self.user)
-                result_contract_valuation = ccpd.contract_valuation(
-                    save=False,
-                    contract_contribution_plan_details={
-                        "contract_details_id": str(result_update_from_phi["data"]["id"]),
-                        "contribution_plan_id": str(cp.id),
-                        "policy_id": phi.policy.id
-                    }
-                )
-                # save the amopunt rectified and decrease version to 1
-                c.version = 1
-                c.date_updated = c.date_updated
-                c.amount_rectified = result_contract_valuation["data"]["total_amount"]
+                c.amount_rectified = total_amount
                 c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
             dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))
         except Exception as exc:
             return _output_exception(model_name="Contract", method="create", exception=exc)
+        return _output_result_success(dict_representation=dict_representation)
+
+    def __services_update_from_ph_contract_valuation(self, policy_holder, contract_id):
+        cd = ContractDetails(user=self.user)
+        result_ph_insuree = cd.update_from_ph_insuree(contract_details={
+            "policy_holder_id": policy_holder,
+            "contract_id": contract_id,
+        })
+        ccpd = ContractContributionPlanDetails(user=self.user)
+        result_contract_valuation = ccpd.contract_valuation(
+            contract_contribution_plan_details={
+                "contract_details": result_ph_insuree["data"],
+                "save": False,
+            }
+        )
+        return result_contract_valuation["data"]["total_amount"]
 
     def submit(self, submit):
         pass
@@ -97,14 +96,23 @@ class ContractDetails(object):
     @check_authentication
     def update_from_ph_insuree(self, contract_details):
         try:
-            cd = ContractDetailsModel(**contract_details)
-            cd.save(self.user)
-            uuid_string = str(contract_details.id)
-            dict_representation = model_to_dict(contract_details)
-            dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
+            contract_insuree_list = []
+            policy_holder_insuree = PolicyHolderInsuree.objects.filter(policy_holder__id=contract_details['policy_holder_id'])
+            for phi in policy_holder_insuree:
+                cd = ContractDetailsModel(**{
+                    "contract_id": contract_details["contract_id"],
+                    "insuree_id": phi.insuree.id,
+                    "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
+                })
+                cd.save(self.user)
+                uuid_string = str(cd.id)
+                dict_representation = model_to_dict(cd)
+                dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
+                dict_representation["policy_id"] = phi.last_policy.id
+                contract_insuree_list.append(dict_representation)
         except Exception as exc:
             return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
-        return _output_result_success(dict_representation=dict_representation)
+        return _output_result_success(dict_representation=contract_insuree_list)
 
 
 class ContractContributionPlanDetails(object):
@@ -113,23 +121,34 @@ class ContractContributionPlanDetails(object):
         self.user = user
 
     @check_authentication
-    def contract_valuation(self, save, contract_contribution_plan_details):
+    def contract_valuation(self, contract_contribution_plan_details):
         try:
-            ccpd = ContractContributionPlanDetailsModel(
-                **contract_contribution_plan_details
-            )
-            if save:
-                ccpd.save(self.user)
-            uuid_string = str(contract_details.id)
-            dict_representation = model_to_dict(ccpd)
-            # temporary value until calculation module be developed
-            dict_representation["total_amount"] = 250
+            dict_representation = {}
+            total_amount = 0
+            for contract_details in contract_contribution_plan_details["contract_details"]:
+                cp = ContributionPlanBundleDetails.objects.filter(
+                    contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
+                )[0]
+                ccpd = ContractContributionPlanDetailsModel(
+                    **{
+                        "contract_details_id": contract_details["id"],
+                        "contribution_plan_id": str(cp.id),
+                        "policy_id": contract_details["policy_id"]
+                    }
+                )
+                # temporary value until calculation module be developed
+                total_amount += 250
+                if contract_contribution_plan_details["save"]:
+                   ccpd.save(self.user)
+                   uuid_string = str(ccpd.id)
+                   dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))
         except Exception as exc:
             return _output_exception(
                 model_name="ContractContributionPlanDetails",
                 method="contractValuation",
                 exception=exc
             )
+        dict_representation['total_amount'] = total_amount
         return _output_result_success(dict_representation=dict_representation)
 
 
@@ -174,4 +193,15 @@ def _output_result_success(dict_representation):
         "message": "Ok",
         "detail": "",
         "data": json.loads(json.dumps(dict_representation, cls=DjangoJSONEncoder)),
+    }
+
+
+def _save_json_external(user_id, datetime, message):
+    return {
+        "comments": [{
+            "From": "Portal/webapp",
+            "user": user_id,
+            "date": datetime,
+            "msg": message
+        }]
     }
