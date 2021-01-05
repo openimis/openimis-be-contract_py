@@ -47,7 +47,7 @@ class Contract(object):
             uuid_string = str(c.id)
             # check if the PH is set
             if "policy_holder_id" in contract:
-                #run services updateFromPHInsuree and Contract Valuation
+                # run services updateFromPHInsuree and Contract Valuation
                 total_amount = self.__services_update_from_ph_contract_valuation(
                     policy_holder=contract["policy_holder_id"],
                     contract_id=uuid_string
@@ -99,11 +99,13 @@ class ContractDetails(object):
             contract_insuree_list = []
             policy_holder_insuree = PolicyHolderInsuree.objects.filter(policy_holder__id=contract_details['policy_holder_id'])
             for phi in policy_holder_insuree:
-                cd = ContractDetailsModel(**{
-                    "contract_id": contract_details["contract_id"],
-                    "insuree_id": phi.insuree.id,
-                    "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
-                })
+                cd = ContractDetailsModel(
+                    **{
+                        "contract_id": contract_details["contract_id"],
+                        "insuree_id": phi.insuree.id,
+                        "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
+                    }
+                )
                 cd.save(self.user)
                 uuid_string = str(cd.id)
                 dict_representation = model_to_dict(cd)
