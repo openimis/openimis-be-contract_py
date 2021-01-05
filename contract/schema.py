@@ -7,6 +7,8 @@ from contract.models import Contract, ContractDetails, \
 from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
     ContractContributionPlanDetailsGQLType
 
+from contract.gql.gql_mutations.contract_mutations import CreateContractMutation
+
 
 class Query(graphene.ObjectType):
 
@@ -61,3 +63,7 @@ class Query(graphene.ObjectType):
             )
 
         return gql_optimizer.query(query.all(), info)
+
+
+class Mutation(graphene.ObjectType):
+    create_contract = CreateContractMutation.Field()
