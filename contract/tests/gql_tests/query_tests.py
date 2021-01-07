@@ -45,6 +45,12 @@ class ContractQueryTest(TestCase):
 
         cls.graph_client = Client(cls.schema)
 
+    @classmethod
+    def tearDownClass(cls):
+        ContractContributionPlanDetails.objects.filter(id=cls.test_contract_contribution_plan_details.id).delete()
+        ContractDetails.objects.filter(id=cls.test_contract_details.id).delete()
+        Contract.objects.filter(id=cls.test_contract.id).delete()
+
     def test_find_contract_existing(self):
         id = self.test_contract.id
         result = self.find_by_id_query("contract", id)
