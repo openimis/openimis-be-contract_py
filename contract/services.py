@@ -97,21 +97,24 @@ class ContractDetails(object):
     def update_from_ph_insuree(self, contract_details):
         try:
             contract_insuree_list = []
-            policy_holder_insuree = PolicyHolderInsuree.objects.filter(policy_holder__id=contract_details['policy_holder_id'])
+            policy_holder_insuree = PolicyHolderInsuree.objects.filter(
+                policy_holder__id=contract_details['policy_holder_id'],
+            )
             for phi in policy_holder_insuree:
-                cd = ContractDetailsModel(
-                    **{
-                        "contract_id": contract_details["contract_id"],
-                        "insuree_id": phi.insuree.id,
-                        "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
-                    }
-                )
-                cd.save(self.user)
-                uuid_string = str(cd.id)
-                dict_representation = model_to_dict(cd)
-                dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
-                dict_representation["policy_id"] = phi.last_policy.id
-                contract_insuree_list.append(dict_representation)
+                if phi.is_deleted == False:
+                    cd = ContractDetailsModel(
+                        **{
+                            "contract_id": contract_details["contract_id"],
+                            "insuree_id": phi.insuree.id,
+                            "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
+                        }
+                    )
+                    cd.save(self.user)
+                    uuid_string = str(cd.id)
+                    dict_representation = model_to_dict(cd)
+                    dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
+                    dict_representation["policy_id"] = phi.last_policy.id
+                    contract_insuree_list.append(dict_representation)
         except Exception as exc:
             return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
         return _output_result_success(dict_representation=contract_insuree_list)

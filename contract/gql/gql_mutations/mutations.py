@@ -4,7 +4,6 @@ from contract.services import Contract as ContractService
 
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
-from core.gql.gql_mutations import ObjectNotExistException
 
 
 class ContractCreateMutationMixin:

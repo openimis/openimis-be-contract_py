@@ -84,6 +84,17 @@ class ContractDetails(core_models.HistoryModel):
 
     objects = ContractDetailsManager()
 
+    @classmethod
+    def get_queryset(cls, queryset, user):
+        queryset = cls.filter_queryset(queryset)
+        if isinstance(user, ResolveInfo):
+            user = user.context.user
+        if settings.ROW_SECURITY and user.is_anonymous:
+            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY:
+            pass
+        return queryset
+
     class Meta:
         db_table = 'tblContractDetails'
 
@@ -108,6 +119,17 @@ class ContractContributionPlanDetails(core_models.HistoryModel):
                                          on_delete=models.deletion.DO_NOTHING, blank=True, null=True)
 
     objects = ContractContributionPlanDetailsManager()
+
+    @classmethod
+    def get_queryset(cls, queryset, user):
+        queryset = cls.filter_queryset(queryset)
+        if isinstance(user, ResolveInfo):
+            user = user.context.user
+        if settings.ROW_SECURITY and user.is_anonymous:
+            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY:
+            pass
+        return queryset
 
     class Meta:
         db_table = 'tblContractContributionPlanDetails'
