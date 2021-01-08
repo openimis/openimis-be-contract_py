@@ -54,7 +54,7 @@ class Contract(object):
                 c.amount_notified = total_amount
             historical_record = c.history.all().last()
             c.json_ext = json.dumps(_save_json_external(
-                user_id=historical_record.user_updated.username,
+                user_id=historical_record.user_updated.id,
                 datetime=historical_record.date_updated,
                 message=""
             ), cls=DjangoJSONEncoder)
