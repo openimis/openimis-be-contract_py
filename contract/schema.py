@@ -31,13 +31,9 @@ class Query(graphene.ObjectType):
     )
 
     def resolve_contract(self, info, **kwargs):
-        print("settings resolve contract")
-        print(ContractConfig.gql_query_contract_perms)
-        print(ContractConfig)
-        print(info.context.user)
-        print(info.context)
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
            raise PermissionError("Unauthorized")
+
         query = Contract.objects.all()
 
         insuree = kwargs.get('insuree', None)
@@ -50,10 +46,16 @@ class Query(graphene.ObjectType):
         return gql_optimizer.query(query.all(), info)
 
     def resolve_contract_details(self, info, **kwargs):
+        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
+           raise PermissionError("Unauthorized")
+
         query = ContractDetails.objects.all()
         return gql_optimizer.query(query.all(), info)
 
     def resolve_contract_contribution_plan_details(self, info, **kwargs):
+        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
+           raise PermissionError("Unauthorized")
+
         query = ContractContributionPlanDetails.objects.all()
 
         insuree = kwargs.get('insuree', None)
