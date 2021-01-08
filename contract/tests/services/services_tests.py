@@ -33,7 +33,6 @@ class ServiceTestPolicyHolder(TestCase):
                  "Ok",
                  "",
                  "AAAAAA",
-                 1,
                  0,
                  None,
             ),
@@ -42,7 +41,6 @@ class ServiceTestPolicyHolder(TestCase):
                  response['message'],
                  response['detail'],
                  response['data']['code'],
-                 response['data']['version'],
                  response['data']['amendment'],
                  response['data']['amount_notified'],
             )
@@ -59,11 +57,11 @@ class ServiceTestPolicyHolder(TestCase):
             contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle)
 
         # create policy holder insuree
-        for i in range(0,4):
+        for i in range(0,5):
             create_test_policy_holder_insuree(policy_holder=policy_holder, contribution_plan_bundle=contribution_plan_bundle)
 
         contract = {
-            'code': 'ADAD',
+            'code': 'CSCSD52',
             'policy_holder_id': policy_holder.id
         }
         response = self.contract_service.create(contract)
@@ -80,7 +78,7 @@ class ServiceTestPolicyHolder(TestCase):
                  True,
                  "Ok",
                  "",
-                 "ADAD",
+                 "CSCSD52",
                  0,
             ),
             (
