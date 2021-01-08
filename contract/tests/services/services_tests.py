@@ -33,7 +33,6 @@ class ServiceTestPolicyHolder(TestCase):
                  "Ok",
                  "",
                  "AAAAAA",
-                 1,
                  0,
                  None,
             ),
