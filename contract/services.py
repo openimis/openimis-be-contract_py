@@ -97,7 +97,9 @@ class ContractDetails(object):
     def update_from_ph_insuree(self, contract_details):
         try:
             contract_insuree_list = []
-            policy_holder_insuree = PolicyHolderInsuree.objects.filter(policy_holder__id=contract_details['policy_holder_id'])
+            policy_holder_insuree = PolicyHolderInsuree.objects.filter(
+                policy_holder__id=contract_details['policy_holder_id'],
+            )
             for phi in policy_holder_insuree:
                 if phi.is_deleted == False:
                     cd = ContractDetailsModel(

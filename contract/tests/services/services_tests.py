@@ -1,10 +1,12 @@
 from unittest import TestCase
 from contract.services import Contract as ContractService, ContractDetails as ContractDetailsService, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsService
+from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
 from policyholder.tests.helpers import create_test_policy_holder, create_test_policy_holder_insuree
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
+from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
 from policy.models import Policy
 from core.models import User
 
@@ -20,15 +22,17 @@ class ServiceTestPolicyHolder(TestCase):
 
     def test_contract_create_without_policy_holder(self):
         contract = {
-            'code': 'CONSERVICE2',
+            'code': 'AAAAAA',
         }
         response = self.contract_service.create(contract)
+        # tear down the test data
+        Contract.objects.filter(id=response["data"]["id"]).delete()
         self.assertEqual(
             (
                  True,
                  "Ok",
                  "",
-                 "CONSERVICE2",
+                 "AAAAAA",
                  0,
                  None,
             ),
@@ -61,6 +65,14 @@ class ServiceTestPolicyHolder(TestCase):
             'policy_holder_id': policy_holder.id
         }
         response = self.contract_service.create(contract)
+        # tear down the test data
+        ContractDetails.objects.filter(contract_id=response["data"]["id"]).delete()
+        Contract.objects.filter(id=response["data"]["id"]).delete()
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
         self.assertEqual(
             (
                  True,
