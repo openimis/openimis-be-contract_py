@@ -5,7 +5,7 @@ from contract.models import Contract, ContractDetails, ContractContributionPlanD
 from insuree.schema import InsureeGQLType
 from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
 from contribution.gql_queries import PremiumGQLType
-
+from policyholder.gql.gql_types import PolicyHolderGQLType
 
 class ContractGQLType(DjangoObjectType):
 
@@ -15,6 +15,7 @@ class ContractGQLType(DjangoObjectType):
         filter_fields = {
             "id": ["exact"],
             "code": ["exact", "istartswith", "icontains", "iexact"],
+            **prefix_filterset("policy_holder__", PolicyHolderGQLType._meta.filter_fields),
             "amount_notified": ["exact", "lt", "lte", "gt", "gte"],
             "amount_rectified": ["exact", "lt", "lte", "gt", "gte"],
             "amount_due": ["exact", "lt", "lte", "gt", "gte"],
