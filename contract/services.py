@@ -75,13 +75,13 @@ class Contract(object):
         )
         return result_contract_valuation["data"]["total_amount"]
 
+    def update(self, contract):
+        pass
+
     def submit(self, submit):
         pass
 
     def amend(self, submit):
-        pass
-
-    def update(self, contract):
         pass
 
     def delete(self, contract):

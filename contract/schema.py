@@ -8,7 +8,7 @@ from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
     ContractContributionPlanDetailsGQLType
 
 from contract.gql.gql_mutations.contract_mutations import CreateContractMutation
-
+from contract.apps import ContractConfig
 
 class Query(graphene.ObjectType):
 
@@ -31,6 +31,13 @@ class Query(graphene.ObjectType):
     )
 
     def resolve_contract(self, info, **kwargs):
+        print("settings resolve contract")
+        print(ContractConfig.gql_query_contract_perms)
+        print(ContractConfig)
+        print(info.context.user)
+        print(info.context)
+        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
+           raise PermissionError("Unauthorized")
         query = Contract.objects.all()
 
         insuree = kwargs.get('insuree', None)
