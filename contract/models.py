@@ -60,6 +60,7 @@ class Contract(core_models.HistoryBusinessModel):
     STATE_EXECUTED = 8
     STATE_DISPUTED = 9
     STATE_TERMINATED = 10
+    STATE_COUNTER = 11
 
 
 class ContractDetailsManager(models.Manager):
@@ -73,7 +74,7 @@ class ContractDetailsManager(models.Manager):
 
 class ContractDetails(core_models.HistoryModel):
     contract = models.ForeignKey(Contract, db_column="ContractUUID",
-                                      on_delete=models.deletion.DO_NOTHING)
+                                      on_delete=models.deletion.CASCADE)
     insuree = models.ForeignKey(Insuree, db_column='InsureeID',
                                               on_delete=models.deletion.DO_NOTHING)
     contribution_plan_bundle = models.ForeignKey(ContributionPlanBundle,
@@ -114,7 +115,7 @@ class ContractContributionPlanDetails(core_models.HistoryModel):
     policy = models.ForeignKey(Policy, db_column='PolicyID',
                                on_delete=models.deletion.DO_NOTHING)
     contract_details = models.ForeignKey(ContractDetails, db_column='ContractDetailsUUID',
-                                         on_delete=models.deletion.DO_NOTHING)
+                                         on_delete=models.deletion.CASCADE)
     contribution = models.ForeignKey(Premium, db_column='ContributionId',
                                          on_delete=models.deletion.DO_NOTHING, blank=True, null=True)
 
