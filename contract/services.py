@@ -6,12 +6,22 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 
+from contract.apps import ContractConfig
 from contract.models import Contract as ContractModel, \
     ContractDetails as ContractDetailsModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
 
 from policyholder.models import PolicyHolderInsuree
 from contribution_plan.models import ContributionPlanBundleDetails
+
+
+class ContractUpdateError(Exception):
+
+    def __init__(self, msg=None):
+        self.msg = msg
+
+    def __str__(self):
+        return f"ContractUpdateError: {self.msg}"
 
 
 def check_authentication(function):
@@ -36,6 +46,8 @@ class Contract(object):
     @check_authentication
     def create(self, contract):
         try:
+            if not self.user.has_perms(ContractConfig.gql_mutation_create_contract_perms):
+                raise PermissionError("Unauthorized")
             c = ContractModel(**contract)
             c.state = ContractModel.STATE_DRAFT
             c.save(username=self.user.username)
@@ -56,7 +68,7 @@ class Contract(object):
             c.json_ext = json.dumps(_save_json_external(
                 user_id=historical_record.user_updated.id,
                 datetime=historical_record.date_updated,
-                message=""
+                message="create contract status "+str(historical_record.state)
             ), cls=DjangoJSONEncoder)
             c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
@@ -75,8 +87,64 @@ class Contract(object):
         )
         return result_contract_valuation["data"]["total_amount"]
 
+    # TODO update contract scenario according to wiki page
+    @check_authentication
     def update(self, contract):
-        pass
+        try:
+            # check rights for contract / amendments
+            if not (self.user.has_perms(ContractConfig.gql_mutation_update_contract_perms) or self.user.has_perms(
+                    ContractConfig.gql_mutation_approve_ask_for_change_contract_perms)):
+                raise PermissionError("Unauthorized")
+            updated_contract = ContractModel.objects.filter(id=contract['id']).first()
+            # updatable scenario
+            if self.__check_rights_by_status(updated_contract.state) == "updatable":
+                if "code" in contract:
+                    raise ContractUpdateError("That fields are not editable in that permission")
+                return _output_result_success(
+                    dict_representation=self.__update_contract_fields(
+                        contract_input=contract,
+                        updated_contract=updated_contract
+                    )
+                )
+            # approvable scenario
+            if self.__check_rights_by_status(updated_contract) == "approvable":
+                # in “Negotiable” changes are possible only with the authority “Approve/ask for change”
+                if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+                    raise PermissionError("Unauthorized")
+                return _output_result_success(
+                    dict_representation=self.__update_contract_fields(
+                        contract_input=contract,
+                        updated_contract=updated_contract
+                    )
+                )
+        except Exception as exc:
+            return _output_exception(model_name="ContractModule", method="update", exception=exc)
+
+    def __check_rights_by_status(self, status):
+        state = "cannot_update"
+        if status in [ContractModel.STATE_DRAFT, ContractModel.STATE_REQUEST_FOR_INFORMATION, ContractModel.STATE_COUNTER]:
+           state = "updatable"
+        if status == ContractModel.STATE_NEGOTIABLE:
+            state = "approvable"
+        return state
+
+    def __update_contract_fields(self, contract_input, updated_contract):
+        # get the current policy_holder value
+        current_policy_holder_id = updated_contract.policy_holder_id
+        [setattr(updated_contract, key, contract_input[key]) for key in contract_input]
+        updated_contract.save(username=self.user.username)
+        # save the communication
+        historical_record = updated_contract.history.all().first()
+        updated_contract.json_ext = json.dumps(_save_json_external(
+            user_id=historical_record.user_updated.id,
+            datetime=historical_record.date_updated,
+            message="update contract status "+str(historical_record.state)
+        ), cls=DjangoJSONEncoder)
+        updated_contract.save(username=self.user.username)
+        uuid_string = str(updated_contract.id)
+        dict_representation = model_to_dict(updated_contract)
+        dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
+        return dict_representation
 
     def submit(self, submit):
         pass
@@ -101,7 +169,8 @@ class ContractDetails(object):
                 policy_holder__id=contract_details['policy_holder_id'],
             )
             for phi in policy_holder_insuree:
-                if phi.is_deleted == False:
+                #TODO add the validity condition also!
+                if phi.is_deleted == False and phi.contribution_plan_bundle:
                     cd = ContractDetailsModel(
                        **{
                            "contract_id": contract_details["contract_id"],
