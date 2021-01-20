@@ -8,6 +8,9 @@ import graphene
 from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
 from policyholder.tests.helpers import *
+from contribution_plan.tests.helpers import create_test_contribution_plan, \
+    create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
+from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
 from contract import schema as contract_schema
 from graphene import Schema
@@ -57,14 +60,24 @@ class MutationTestCreate(TestCase):
 
     def test_mutation_contract_create_with_policy_holder(self):
         # create contract for contract with policy holder with two phinsuree
-        test_policy_holder = create_test_policy_holder()
-        test_policy_holder_insuree = create_test_policy_holder_insuree(policy_holder=test_policy_holder)
-        test_policy_holder_insuree2 = create_test_policy_holder_insuree(policy_holder=test_policy_holder)
+        policy_holder = create_test_policy_holder()
+
+        # create contribution plan etc
+        contribution_plan_bundle = create_test_contribution_plan_bundle()
+        contribution_plan = create_test_contribution_plan()
+        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
+        )
+
+        # create policy holder insuree
+        for i in range(0, 3):
+            create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                              contribution_plan_bundle=contribution_plan_bundle)
 
         time_stamp = datetime.datetime.now()
         input_param = {
             "code": "XYZ:"+str(time_stamp),
-            "policyHolderId": str(test_policy_holder.id)
+            "policyHolderId": str(policy_holder.id)
         }
         self.add_mutation("createContract", input_param)
         result = self.find_by_exact_attributes_query(
@@ -75,8 +88,11 @@ class MutationTestCreate(TestCase):
         # tear down the test data
         ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
         Contract.objects.filter(id=str(converted_id)).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(test_policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=test_policy_holder.id).delete()
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
             (
@@ -85,6 +101,64 @@ class MutationTestCreate(TestCase):
             ,
             (
                 result[0]['node']['code'],
+            )
+        )
+
+    def test_mutation_contract_create_update_with_policy_holder(self):
+        # create contract for contract with policy holder with two phinsuree
+        policy_holder = create_test_policy_holder()
+
+        # create contribution plan etc
+        contribution_plan_bundle = create_test_contribution_plan_bundle()
+        contribution_plan = create_test_contribution_plan()
+        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
+        )
+
+        # create policy holder insuree
+        for i in range(0, 3):
+            create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                              contribution_plan_bundle=contribution_plan_bundle)
+
+        time_stamp = datetime.datetime.now()
+        input_param = {
+            "code": "CT:"+str(time_stamp),
+            "policyHolderId": str(policy_holder.id)
+        }
+        self.add_mutation("createContract", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contract",
+            params=input_param,
+        )["edges"]
+        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+        expected_amount_notified = result[0]["node"]["amountNotified"] + 400.50
+
+        input_param = {
+            "id": str(converted_id),
+            "amountNotified": str(expected_amount_notified),
+        }
+        self.add_mutation("updateContract", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contract",
+            params={"id": str(converted_id)},
+        )["edges"]
+
+        # tear down the test data
+        ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
+        Contract.objects.filter(id=str(converted_id)).delete()
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
+
+        self.assertEqual(
+            (
+                expected_amount_notified,
+            )
+            ,
+            (
+                result[0]['node']['amountNotified'],
             )
         )
 
@@ -132,6 +206,9 @@ class MutationTestCreate(TestCase):
                     dateValidFrom
                     dateValidTo
                     replacementUuid
+                    amountDue
+                    amountNotified
+                    amountRectified
                   }}
                   cursor
                 }}
