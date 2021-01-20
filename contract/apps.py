@@ -9,7 +9,16 @@ DEFAULT_CFG = {
     "gql_query_contract_admins_perms": [],
     "gql_mutation_create_contract_perms": ["152102"],
     "gql_mutation_update_contract_perms": ["152103"],
+    "gql_mutation_delete_contract_perms": ["152104"],
+    "gql_mutation_renew_contract_perms": ["152106"],
+    "gql_mutation_submit_contract_perms": ["152107"],
     "gql_mutation_approve_ask_for_change_contract_perms": ["152108"],
+    "gql_mutation_amend_contract_perms": ["152109"],
+    "gql_query_payment_perms": ["101401"],
+    "gql_mutation_create_payments_perms": ["101402"],
+    "gql_mutation_update_payments_perms": ["101403"],
+    "gql_mutation_delete_payments_perms": ["101404"],
+    "gql_mutation_approve_payments_perms": ["101408"],
 }
 
 
@@ -20,7 +29,14 @@ class ContractConfig(AppConfig):
     gql_query_contract_admins_perms = []
     gql_mutation_create_contract_perms = []
     gql_mutation_update_contract_perms = []
+    gql_mutation_delete_contract_perms = []
+    gql_mutation_renew_contract_perms = []
+    gql_mutation_submit_contract_perms = []
     gql_mutation_approve_ask_for_change_contract_perms = []
+    gql_mutation_create_payments_perms = []
+    gql_mutation_update_payments_perms = []
+    gql_mutation_delete_payments_perms = []
+    gql_mutation_approve_payments_perms = []
 
     def _configure_permissions(selfself, cfg):
         ContractConfig.gql_query_contract_perms = cfg[
@@ -33,8 +49,28 @@ class ContractConfig(AppConfig):
         ContractConfig.gql_mutation_update_contract_perms = cfg[
             "gql_mutation_update_contract_perms"
         ]
+        ContractConfig.gql_mutation_delete_contract_perms = cfg[
+            "gql_mutation_delete_contract_perms"]
+        ContractConfig.gql_mutation_renew_contract_perms = cfg[
+            "gql_mutation_renew_contract_perms"
+        ]
+        ContractConfig.gql_mutation_submit_contract_perms = cfg[
+            "gql_mutation_submit_contract_perms"
+        ]
         ContractConfig.gql_mutation_approve_ask_for_change_contract_perms = cfg[
             "gql_mutation_approve_ask_for_change_contract_perms"
+        ]
+        ContractConfig.gql_mutation_create_payments_perms = cfg[
+            "gql_mutation_create_payments_perms"
+        ]
+        ContractConfig.gql_mutation_update_payments_perms = cfg[
+            "gql_mutation_update_payments_perms"
+        ]
+        ContractConfig.gql_mutation_delete_payments_perms = cfg[
+            "gql_mutation_delete_payments_perms"
+        ]
+        ContractConfig.gql_mutation_approve_payments_perms = cfg[
+            "gql_mutation_approve_payments_perms"
         ]
 
     def ready(self):
