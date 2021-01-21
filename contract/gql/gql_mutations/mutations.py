@@ -1,5 +1,6 @@
 from core import TimeUtils
 from core.schema import OpenIMISMutation
+from core.gql.gql_mutations import ObjectNotExistException
 from contract.services import Contract as ContractService
 from contract.apps import ContractConfig
 from django.contrib.auth.models import AnonymousUser
@@ -57,4 +58,34 @@ class ContractUpdateMutationMixin:
     def update_contract(cls, user, contract):
         contract_service = ContractService(user=user)
         output_data = contract_service.update(contract=contract)
+        return output_data
+
+
+class ContractDeleteMutationMixin:
+    @property
+    def _model(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def _object_not_exist_exception(cls, obj_uuid):
+        raise ObjectNotExistException(cls._model, obj_uuid)
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        cls._validate_user(user)
+
+    @classmethod
+    def _validate_user(cls, user):
+        if type(user) is AnonymousUser or not user.id:
+            raise ValidationError("mutation.authentication_required")
+
+    @classmethod
+    def _mutate(cls, user, uuid):
+        output = cls.delete_contract(user=user, contract={"id": uuid})
+        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+
+    @classmethod
+    def delete_contract(cls, user, contract):
+        contract_service = ContractService(user=user)
+        output_data = contract_service.delete(contract=contract)
         return output_data
