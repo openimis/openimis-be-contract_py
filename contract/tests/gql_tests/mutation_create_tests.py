@@ -142,6 +142,14 @@ class MutationTestCreate(TestCase):
             "contract",
             params={"id": str(converted_id)},
         )["edges"]
+        updated_amount_notified = result[0]['node']['amountNotified']
+
+        self.add_mutation("deleteContract", {"uuids": [str(converted_id)]})
+        result = self.find_by_exact_attributes_query(
+            "contract",
+            params={"id": str(converted_id), "isDeleted": True},
+        )["edges"]
+        is_deleted = result[0]['node']['isDeleted']
 
         # tear down the test data
         ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
@@ -155,10 +163,12 @@ class MutationTestCreate(TestCase):
         self.assertEqual(
             (
                 expected_amount_notified,
+                True
             )
             ,
             (
-                result[0]['node']['amountNotified'],
+                updated_amount_notified,
+                is_deleted
             )
         )
 
