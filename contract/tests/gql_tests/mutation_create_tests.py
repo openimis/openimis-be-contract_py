@@ -162,6 +162,74 @@ class MutationTestCreate(TestCase):
             )
         )
 
+    def test_mutation_contract_create_details_and_update(self):
+        # create contract for contract with policy holder with two phinsuree
+        policy_holder = create_test_policy_holder()
+
+        # create contribution plan etc
+        contribution_plan_bundle = create_test_contribution_plan_bundle()
+        contribution_plan = create_test_contribution_plan()
+        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
+        )
+
+        # create policy holder insuree
+        for i in range(0, 2):
+            create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                              contribution_plan_bundle=contribution_plan_bundle)
+
+        time_stamp = datetime.datetime.now()
+        input_param = {
+            "code": "CT:"+str(time_stamp),
+            "policyHolderId": str(policy_holder.id)
+        }
+        self.add_mutation("createContract", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contract",
+            params=input_param,
+        )["edges"]
+        converted_id_contract = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+
+        # scneario to create contract detail
+        policy_holder_insuree = create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                                                   contribution_plan_bundle=contribution_plan_bundle)
+        policy_holder_insuree2 = create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                                                   contribution_plan_bundle=contribution_plan_bundle)
+        input_param = {
+            "contractId": str(converted_id_contract),
+            "insureeId": policy_holder_insuree.insuree.id,
+            "contributionPlanBundleId": str(contribution_plan_bundle_details.id),
+        }
+        self.add_mutation("createContractDetails", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contractDetails",
+            params=input_param,
+        )["edges"]
+        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+
+        #in update contract detail test the scenario is to change insuree
+        input_param = {
+            "id": str(converted_id),
+            "insureeId": policy_holder_insuree2.insuree.id,
+        }
+        self.add_mutation("updateContractDetails", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contractDetails",
+            params=input_param,
+        )["edges"]
+        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+
+        # tear down the test data
+        ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
+        Contract.objects.filter(id=str(converted_id_contract)).delete()
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
+
+        self.assertEqual(2, result[0]['node']['version'])
+
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
         {{
@@ -193,22 +261,23 @@ class MutationTestCreate(TestCase):
             params.pop('dateValidTo')
         if "policyHolderId" in params:
             params.pop('policyHolderId')
-        node_content_str = "\n".join(params.keys())
+        if "contributionPlanBundleId" in params:
+            params.pop('contributionPlanBundleId')
+        if "insureeId" in params:
+            params.pop('insureeId')
+        node_content_str = "\n".join(params.keys()) if query_type == "contract" else ''
         query = F'''
         {{
-            {query_type}({self.build_params(params)}) {{
+            {query_type}({ 'contract_Id: "'+str(params["contractId"])+'", orderBy: ["-dateCreated"]'  if "contractId" in params else self.build_params(params)}) {{
                 totalCount
                 edges {{
                   node {{
-                    {'id' if 'id' not in params else '' }
+                    id
                     {node_content_str}
                     version
-                    dateValidFrom
-                    dateValidTo
-                    replacementUuid
-                    amountDue
-                    amountNotified
-                    amountRectified
+                    {'amountDue' if query_type =='contract' else '' }
+                    {'amountNotified' if query_type =='contract' else '' }
+                    {'amountRectified' if query_type =='contract' else '' }
                   }}
                   cursor
                 }}
