@@ -40,3 +40,21 @@ class ContractUpdateInputType(OpenIMISMutation.Input):
     date_valid_from = graphene.Date(required=False)
     date_valid_to = graphene.Date(required=False)
     json_ext = graphene.types.json.JSONString(required=False)
+
+
+class ContractDetailsCreateInputType(OpenIMISMutation.Input):
+    id = graphene.UUID(required=False)
+    contract_id = graphene.UUID(required=True)
+    insuree_id = graphene.Int(required=True)
+    contribution_plan_bundle_id = graphene.UUID(required=True)
+    json_ext = graphene.types.json.JSONString(required=False)
+    json_param = graphene.types.json.JSONString(required=False)
+
+
+class ContractDetailsUpdateInputType(OpenIMISMutation.Input):
+    id = graphene.UUID(required=True)
+    contract_id = graphene.UUID(required=False)
+    insuree_id = graphene.Int(required=False)
+    contribution_plan_bundle_id = graphene.UUID(required=False)
+    json_ext = graphene.types.json.JSONString(required=False)
+    json_param = graphene.types.json.JSONString(required=False)
