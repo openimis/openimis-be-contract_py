@@ -90,7 +90,7 @@ class ServiceTestPolicyHolder(TestCase):
             )
         )
 
-    def test_contract_create_update_with_policy_holder(self):
+    def test_contract_create_update_delete_with_policy_holder(self):
         # create contract for contract with policy holder with two phinsuree
         policy_holder = create_test_policy_holder()
 
@@ -119,6 +119,14 @@ class ServiceTestPolicyHolder(TestCase):
             "amount_notified": expected_amount_notified,
         }
         response = self.contract_service.update(contract)
+        updated_amount_notified = response['data']['amount_notified']
+
+        contract = {
+            "id": contract_id,
+        }
+        response = self.contract_service.delete(contract)
+        is_deleted = response['success']
+
         # tear down the test data
         ContractDetails.objects.filter(contract_id=contract_id).delete()
         Contract.objects.filter(id=contract_id).delete()
@@ -128,4 +136,7 @@ class ServiceTestPolicyHolder(TestCase):
         ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
         ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
-        self.assertEqual(expected_amount_notified, response['data']['amount_notified'])
+        self.assertEqual(
+            (expected_amount_notified, True),
+            (updated_amount_notified, is_deleted)
+        )

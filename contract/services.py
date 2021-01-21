@@ -153,7 +153,19 @@ class Contract(object):
         pass
 
     def delete(self, contract):
-        pass
+        try:
+            # check rights for delete contract
+            if not self.user.has_perms(ContractConfig.gql_mutation_delete_contract_perms):
+                raise PermissionError("Unauthorized")
+            contract_to_delete = ContractModel.objects.filter(id=contract["id"]).first()
+            contract_to_delete.delete(username=self.user.username)
+            return {
+                "success": True,
+                "message": "Ok",
+                "detail": "",
+            }
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="delete", exception=exc)
 
 
 class ContractDetails(object):
