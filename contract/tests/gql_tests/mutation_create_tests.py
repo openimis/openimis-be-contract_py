@@ -162,7 +162,7 @@ class MutationTestCreate(TestCase):
             )
         )
 
-    def test_mutation_contract_create_details_and_update(self):
+    def test_mutation_contract_create_details_and_update_delete(self):
         # create contract for contract with policy holder with two phinsuree
         policy_holder = create_test_policy_holder()
 
@@ -218,6 +218,17 @@ class MutationTestCreate(TestCase):
             params=input_param,
         )["edges"]
         converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+        version_after_update = result[0]['node']['version']
+
+        # delete contractDetails mutation test
+        input_param = {
+            "uuids": [str(converted_id)],
+        }
+        self.add_mutation("deleteContractDetails", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contractDetails",
+            params=input_param,
+        )["edges"]
 
         # tear down the test data
         ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
@@ -228,7 +239,10 @@ class MutationTestCreate(TestCase):
         ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
         ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
-        self.assertEqual(2, result[0]['node']['version'])
+        self.assertEqual(
+            (2, 3),
+            (version_after_update, result[0]['node']['version'])
+        )
 
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
@@ -265,6 +279,9 @@ class MutationTestCreate(TestCase):
             params.pop('contributionPlanBundleId')
         if "insureeId" in params:
             params.pop('insureeId')
+        if "uuids" in params:
+            params["id"] = params["uuids"][0]
+            params.pop("uuids")
         node_content_str = "\n".join(params.keys()) if query_type == "contract" else ''
         query = F'''
         {{
