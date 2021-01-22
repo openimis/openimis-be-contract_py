@@ -7,11 +7,13 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 
 from contract.apps import ContractConfig
+from contract.signals import signal_contract
 from contract.models import Contract as ContractModel, \
     ContractDetails as ContractDetailsModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
 
 from policyholder.models import PolicyHolderInsuree
+from contribution.models import Premium
 from contribution_plan.models import ContributionPlanBundleDetails
 
 
@@ -35,6 +37,7 @@ def check_authentication(function):
         else:
             result = function(self, *args, **kwargs)
             return result
+
     return wrapper
 
 
@@ -62,13 +65,13 @@ class Contract(object):
                 })
                 total_amount = self.__evaluate_contract_valuation(
                     contract_details_result=result_ph_insuree,
-                )
+                )["total_amount"]
                 c.amount_notified = total_amount
             historical_record = c.history.all().last()
             c.json_ext = json.dumps(_save_json_external(
                 user_id=historical_record.user_updated.id,
                 datetime=historical_record.date_updated,
-                message="create contract status "+str(historical_record.state)
+                message="create contract status " + str(historical_record.state)
             ), cls=DjangoJSONEncoder)
             c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
@@ -85,7 +88,7 @@ class Contract(object):
                 "save": False,
             }
         )
-        return result_contract_valuation["data"]["total_amount"]
+        return result_contract_valuation["data"]
 
     # TODO update contract scenario according to wiki page
     @check_authentication
@@ -122,8 +125,9 @@ class Contract(object):
 
     def __check_rights_by_status(self, status):
         state = "cannot_update"
-        if status in [ContractModel.STATE_DRAFT, ContractModel.STATE_REQUEST_FOR_INFORMATION, ContractModel.STATE_COUNTER]:
-           state = "updatable"
+        if status in [ContractModel.STATE_DRAFT, ContractModel.STATE_REQUEST_FOR_INFORMATION,
+                      ContractModel.STATE_COUNTER]:
+            state = "updatable"
         if status == ContractModel.STATE_NEGOTIABLE:
             state = "approvable"
         return state
@@ -138,7 +142,7 @@ class Contract(object):
         updated_contract.json_ext = json.dumps(_save_json_external(
             user_id=historical_record.user_updated.id,
             datetime=historical_record.date_updated,
-            message="update contract status "+str(historical_record.state)
+            message="update contract status " + str(historical_record.state)
         ), cls=DjangoJSONEncoder)
         updated_contract.save(username=self.user.username)
         uuid_string = str(updated_contract.id)
@@ -146,8 +150,57 @@ class Contract(object):
         dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
         return dict_representation
 
-    def submit(self, submit):
-        pass
+    # TODO contract submit
+    @check_authentication
+    def submit(self, contract):
+        # check for submittion right perms/authorites
+        if not self.user.has_perms(ContractConfig.gql_mutation_submit_contract_perms):
+            raise PermissionError("Unauthorized")
+
+        contract_id = str(contract["id"])
+        contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
+        contract_details_list = {}
+        contract_details_list["data"] = self.__gather_policy_holder_insuree(self.__validate_submission(contract_to_submit=contract_to_submit))
+        # contract valuation
+        contract_contribution_plan_details = self.__evaluate_contract_valuation(
+            contract_details_result=contract_details_list,
+        )
+        contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
+        # TODO create contract contribution based on service
+        ccpd = ContractContributionPlanDetails(user=self.user)
+        #ccpd.create_contribution(contract_contribution_plan_details)
+        # send signal
+        contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
+        signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
+        dict_representation = model_to_dict(contract_to_submit)
+        dict_representation["id"], dict_representation["uuid"] = (str(contract_id), str(contract_id))
+        return dict_representation
+
+    def __validate_submission(self, contract_to_submit):
+        # check if we have a PolicyHoldes and any ContractDetails
+        if not contract_to_submit.policy_holder:
+            raise ContractUpdateError("The contract doesn't contains PolicyHolder")
+        contract_details = ContractDetailsModel.objects.filter(contract_id=contract_to_submit.id)
+        if contract_details.count() == 0:
+            raise ContractUpdateError("The contract doesn't contains any insuree")
+        # variable to check if we have right for submit
+        state_right = self.__check_rights_by_status(contract_to_submit.state)
+        # check if we can submit
+        if state_right == "cannot_update":
+            raise ContractUpdateError("The contract cannot be submitted")
+        if state_right == "approvable":
+            raise ContractUpdateError("The contract has been already submitted")
+        return list(contract_details.values())
+
+    def __gather_policy_holder_insuree(self, contract_details):
+        return [
+            {
+                "id": str(cd["id"]),
+                "contribution_plan_bundle": str(cd["contribution_plan_bundle_id"]),
+                "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd["insuree_id"]).first().last_policy.id,
+            }
+            for cd in contract_details
+        ]
 
     def amend(self, submit):
         pass
@@ -181,14 +234,14 @@ class ContractDetails(object):
                 policy_holder__id=contract_details['policy_holder_id'],
             )
             for phi in policy_holder_insuree:
-                #TODO add the validity condition also!
+                # TODO add the validity condition also!
                 if phi.is_deleted == False and phi.contribution_plan_bundle:
                     cd = ContractDetailsModel(
-                       **{
-                           "contract_id": contract_details["contract_id"],
-                           "insuree_id": phi.insuree.id,
-                           "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
-                       }
+                        **{
+                            "contract_id": contract_details["contract_id"],
+                            "insuree_id": phi.insuree.id,
+                            "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
+                        }
                     )
                     cd.save(self.user)
                     uuid_string = str(cd.id)
@@ -210,15 +263,16 @@ class ContractContributionPlanDetails(object):
     def contract_valuation(self, contract_contribution_plan_details):
         try:
             dict_representation = {}
+            ccpd_list = []
             total_amount = 0
             for contract_details in contract_contribution_plan_details["contract_details"]:
-                cp = ContributionPlanBundleDetails.objects.filter(
+                cpbd = ContributionPlanBundleDetails.objects.filter(
                     contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
                 )[0]
                 ccpd = ContractContributionPlanDetailsModel(
                     **{
                         "contract_details_id": contract_details["id"],
-                        "contribution_plan_id": str(cp.id),
+                        "contribution_plan_id": str(cpbd.contribution_plan.id),
                         "policy_id": contract_details["policy_id"]
                     }
                 )
@@ -226,10 +280,13 @@ class ContractContributionPlanDetails(object):
                 #  to count the value for amount. And now temporary value is here
                 #  until calculation module be developed
                 total_amount += 250
+
+                ccpd_record = model_to_dict(ccpd)
                 if contract_contribution_plan_details["save"]:
-                   ccpd.save(self.user)
-                   uuid_string = str(ccpd.id)
-                   dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))
+                    ccpd.save(self.user)
+                    uuid_string = str(ccpd.id)
+                    ccpd_record['id'], ccpd_record['uuid'] = (str(uuid_string), str(uuid_string))
+                ccpd_list.append(ccpd_record)
         except Exception as exc:
             return _output_exception(
                 model_name="ContractContributionPlanDetails",
@@ -237,7 +294,20 @@ class ContractContributionPlanDetails(object):
                 exception=exc
             )
         dict_representation['total_amount'] = total_amount
+        dict_representation['contribution_plan_details'] = ccpd_list
         return _output_result_success(dict_representation=dict_representation)
+
+    # TODO create contribution service
+    """
+    @check_authentication
+    def create_contribution(self, contract_contribution_plan_details):
+        cp = contract_contribution_plan_details["contribution_plan"]
+        # TODO here will be a function from calculation module
+        #  to count the value for amount. And now temporary value is here
+        #  until calculation module be developed
+        contribution = Premium.objects.create(**data)
+        pass
+    """
 
 
 @core.comparable
