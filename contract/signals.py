@@ -1,6 +1,5 @@
 from .models import Contract
-from core.signals import Signal as Signal
-
+from core.signals import Signal
 
 _contract_signal_params = ["contract", "user"]
 signal_contract = Signal(providing_args=_contract_signal_params)
