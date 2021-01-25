@@ -89,3 +89,43 @@ class ServiceTestPolicyHolder(TestCase):
                  response['data']['amendment'],
             )
         )
+
+    def test_contract_create_update_with_policy_holder(self):
+        # create contract for contract with policy holder with two phinsuree
+        policy_holder = create_test_policy_holder()
+
+        # create contribution plan etc
+        contribution_plan_bundle = create_test_contribution_plan_bundle()
+        contribution_plan = create_test_contribution_plan()
+        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
+        )
+
+        # create policy holder insuree
+        for i in range(0, 3):
+            create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                              contribution_plan_bundle=contribution_plan_bundle)
+
+        contract = {
+            "code": "CTS",
+            "policy_holder_id": str(policy_holder.id)
+        }
+        response = self.contract_service.create(contract)
+        contract_id = str(response["data"]["id"])
+        expected_amount_notified = response["data"]["amount_notified"] + 400.50
+
+        contract = {
+            "id": contract_id,
+            "amount_notified": expected_amount_notified,
+        }
+        response = self.contract_service.update(contract)
+        # tear down the test data
+        ContractDetails.objects.filter(contract_id=contract_id).delete()
+        Contract.objects.filter(id=contract_id).delete()
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
+
+        self.assertEqual(expected_amount_notified, response['data']['amount_notified'])
