@@ -254,6 +254,60 @@ class MutationTestCreate(TestCase):
             (version_after_update, result[0]['node']['version'])
         )
 
+    def test_mutation_contract_create_submit(self):
+        # create contract for contract with policy holder with two phinsuree
+        policy_holder = create_test_policy_holder()
+
+        # create contribution plan etc
+        contribution_plan_bundle = create_test_contribution_plan_bundle()
+        contribution_plan = create_test_contribution_plan()
+        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
+        )
+
+        # create policy holder insuree
+        for i in range(0, 4):
+            create_test_policy_holder_insuree(policy_holder=policy_holder,
+                                              contribution_plan_bundle=contribution_plan_bundle)
+
+        time_stamp = datetime.datetime.now()
+        input_param = {
+            "code": "GHT",
+            "policyHolderId": str(policy_holder.id)
+        }
+        self.add_mutation("createContract", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contract",
+            params=input_param,
+        )["edges"]
+        converted_id_contract = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+
+        input_param = {
+            "id": str(converted_id_contract),
+        }
+        self.add_mutation("submitContract", input_param)
+        result = self.find_by_exact_attributes_query(
+            "contract",
+            params=input_param,
+        )["edges"]
+        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+        result_state = result[0]['node']['state']
+        expected_state = 4
+
+        # tear down the test data
+        ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
+        Contract.objects.filter(id=str(converted_id_contract)).delete()
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
+
+        self.assertEqual(
+            expected_state, result_state
+        )
+
+
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
         {{
@@ -305,6 +359,7 @@ class MutationTestCreate(TestCase):
                     {'amountDue' if query_type =='contract' else '' }
                     {'amountNotified' if query_type =='contract' else '' }
                     {'amountRectified' if query_type =='contract' else '' }
+                    {'state' if query_type =='contract' else '' }
                   }}
                   cursor
                 }}
