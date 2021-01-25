@@ -8,7 +8,7 @@ from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
     ContractContributionPlanDetailsGQLType
 
 from contract.gql.gql_mutations.contract_mutations import CreateContractMutation, \
-    UpdateContractMutation
+    UpdateContractMutation, DeleteContractMutation
 from contract.gql.gql_mutations.contract_details_mutations import CreateContractDetailsMutation, \
     UpdateContractDetailsMutation, DeleteContractDetailsMutation
 
@@ -81,6 +81,7 @@ class Query(graphene.ObjectType):
 class Mutation(graphene.ObjectType):
     create_contract = CreateContractMutation.Field()
     update_contract = UpdateContractMutation.Field()
+    delete_contract = DeleteContractMutation.Field()
 
     create_contract_details = CreateContractDetailsMutation.Field()
     update_contract_details = UpdateContractDetailsMutation.Field()
