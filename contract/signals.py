@@ -1,9 +1,9 @@
 from .models import Contract
-from django import dispatch
+from core.signals import Signal as Signal
 
 
 _contract_signal_params = ["contract", "user"]
-signal_contract = dispatch.Signal(providing_args=_contract_signal_params)
+signal_contract = Signal(providing_args=_contract_signal_params)
 
 
 def on_contract_signal(sender, **kwargs):
