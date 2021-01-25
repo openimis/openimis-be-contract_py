@@ -211,6 +211,9 @@ class Contract(object):
             if not self.user.has_perms(ContractConfig.gql_mutation_delete_contract_perms):
                 raise PermissionError("Unauthorized")
             contract_to_delete = ContractModel.objects.filter(id=contract["id"]).first()
+            # block deleting contract not in Updateable or Approvable state
+            if self.__check_rights_by_status(contract_to_delete.state) == "cannot_update":
+                raise ContractUpdateError("Contract in that state cannot be deleted")
             contract_to_delete.delete(username=self.user.username)
             return {
                 "success": True,
