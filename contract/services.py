@@ -13,7 +13,7 @@ from contract.models import Contract as ContractModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
 
 from policyholder.models import PolicyHolderInsuree
-from contribution.models import Premium
+from contribution.models import Premium, Payer
 from contribution_plan.models import ContributionPlanBundleDetails
 
 
@@ -121,7 +121,7 @@ class Contract(object):
                     )
                 )
         except Exception as exc:
-            return _output_exception(model_name="ContractModule", method="update", exception=exc)
+            return _output_exception(model_name="Contract", method="update", exception=exc)
 
     def __check_rights_by_status(self, status):
         state = "cannot_update"
@@ -136,6 +136,10 @@ class Contract(object):
         # get the current policy_holder value
         current_policy_holder_id = updated_contract.policy_holder_id
         [setattr(updated_contract, key, contract_input[key]) for key in contract_input]
+        #check if PH is set and not changed
+        if current_policy_holder_id:
+            if "policy_holder" in updated_contract.get_dirty_fields(check_relationship=True):
+                raise ContractUpdateError("You cannot update already set PolicyHolder in Contract")
         updated_contract.save(username=self.user.username)
         # save the communication
         historical_record = updated_contract.history.all().first()
@@ -150,31 +154,35 @@ class Contract(object):
         dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
         return dict_representation
 
-    # TODO contract submit
     @check_authentication
     def submit(self, contract):
-        # check for submittion right perms/authorites
-        if not self.user.has_perms(ContractConfig.gql_mutation_submit_contract_perms):
-            raise PermissionError("Unauthorized")
+        try:
+            # check for submittion right perms/authorites
+            if not self.user.has_perms(ContractConfig.gql_mutation_submit_contract_perms):
+                raise PermissionError("Unauthorized")
 
-        contract_id = str(contract["id"])
-        contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
-        contract_details_list = {}
-        contract_details_list["data"] = self.__gather_policy_holder_insuree(self.__validate_submission(contract_to_submit=contract_to_submit))
-        # contract valuation
-        contract_contribution_plan_details = self.__evaluate_contract_valuation(
-            contract_details_result=contract_details_list,
-        )
-        contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
-        # TODO create contract contribution based on service
-        ccpd = ContractContributionPlanDetails(user=self.user)
-        #ccpd.create_contribution(contract_contribution_plan_details)
-        # send signal
-        contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
-        signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
-        dict_representation = model_to_dict(contract_to_submit)
-        dict_representation["id"], dict_representation["uuid"] = (str(contract_id), str(contract_id))
-        return dict_representation
+            contract_id = str(contract["id"])
+            contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
+            contract_details_list = {}
+            contract_details_list["data"] = self.__gather_policy_holder_insuree(
+                self.__validate_submission(contract_to_submit=contract_to_submit)
+            )
+            # contract valuation
+            contract_contribution_plan_details = self.__evaluate_contract_valuation(
+                contract_details_result=contract_details_list,
+            )
+            contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
+            # create contract contribution based on service
+            ccpd = ContractContributionPlanDetails(user=self.user)
+            result_contribution = ccpd.create_contribution(contract_contribution_plan_details)
+            # send signal
+            contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
+            signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
+            dict_representation = model_to_dict(contract_to_submit)
+            dict_representation["id"], dict_representation["uuid"] = (str(contract_id), str(contract_id))
+            return dict_representation
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="submit", exception=exc)
 
     def __validate_submission(self, contract_to_submit):
         # check if we have a PolicyHoldes and any ContractDetails
@@ -187,7 +195,7 @@ class Contract(object):
         state_right = self.__check_rights_by_status(contract_to_submit.state)
         # check if we can submit
         if state_right == "cannot_update":
-            raise ContractUpdateError("The contract cannot be submitted")
+            raise ContractUpdateError("The contract cannot be submitted because of current state")
         if state_right == "approvable":
             raise ContractUpdateError("The contract has been already submitted")
         return list(contract_details.values())
@@ -276,41 +284,68 @@ class ContractContributionPlanDetails(object):
                     **{
                         "contract_details_id": contract_details["id"],
                         "contribution_plan_id": str(cpbd.contribution_plan.id),
-                        "policy_id": contract_details["policy_id"]
+                        "policy_id": contract_details["policy_id"],
+                        "contribution_id": contract_details["contract_id"] if "contract_id" in contract_details else None
                     }
                 )
                 # TODO here will be a function from calculation module
                 #  to count the value for amount. And now temporary value is here
                 #  until calculation module be developed
-                total_amount += 250
-
+                calculated_amount = 250
+                total_amount += calculated_amount
                 ccpd_record = model_to_dict(ccpd)
+                ccpd_record["calculated_amount"] = calculated_amount
                 if contract_contribution_plan_details["save"]:
                     ccpd.save(self.user)
                     uuid_string = str(ccpd.id)
                     ccpd_record['id'], ccpd_record['uuid'] = (str(uuid_string), str(uuid_string))
                 ccpd_list.append(ccpd_record)
+            dict_representation['total_amount'] = total_amount
+            dict_representation['contribution_plan_details'] = ccpd_list
+            return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(
                 model_name="ContractContributionPlanDetails",
                 method="contractValuation",
                 exception=exc
             )
-        dict_representation['total_amount'] = total_amount
-        dict_representation['contribution_plan_details'] = ccpd_list
-        return _output_result_success(dict_representation=dict_representation)
 
-    # TODO create contribution service
-    """
     @check_authentication
     def create_contribution(self, contract_contribution_plan_details):
-        cp = contract_contribution_plan_details["contribution_plan"]
-        # TODO here will be a function from calculation module
-        #  to count the value for amount. And now temporary value is here
-        #  until calculation module be developed
-        contribution = Premium.objects.create(**data)
-        pass
-    """
+        try:
+            dict_representation = {}
+            contribution_list = []
+            from core import datetime
+            now = datetime.datetime.now()
+            for ccpd in contract_contribution_plan_details["contribution_plan_details"]:
+                contract_details = ContractDetailsModel.objects.get(id=f"{ccpd['contract_details']}")
+                # create the contributions based on the ContractContributionPlanDetails
+                contribution = Premium.objects.create(
+                  **{
+                       "policy_id": ccpd["policy"],
+                       "amount": ccpd["calculated_amount"],
+                       "audit_user_id": -1,
+                       "pay_date": now,
+                       # TODO Temporary value pay_type - I have to get to know about this field what should be here
+                       #  also ask about audit_user_id and pay_date value
+                       "pay_type": " ",
+                    }
+                )
+                contract_details.json_ext = json.dumps(
+                    {"contribution_uuid": contribution.uuid},
+                    cls=DjangoJSONEncoder
+                )
+                contract_details.save(self.user)
+                contribution_record = model_to_dict(contribution)
+                contribution_list.append(contribution_record)
+            dict_representation["contributions"] = contribution_list
+            return _output_result_success(dict_representation=dict_representation)
+        except Exception as exc:
+            return _output_exception(
+                model_name="ContractContributionPlanDetails",
+                method="createContribution",
+                exception=exc
+            )
 
 
 @core.comparable
