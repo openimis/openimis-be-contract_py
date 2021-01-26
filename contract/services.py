@@ -7,14 +7,16 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 
 from contract.apps import ContractConfig
-from contract.signals import signal_contract
+from contract.signals import signal_contract, signal_contract_approve
 from contract.models import Contract as ContractModel, \
     ContractDetails as ContractDetailsModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
 
 from policyholder.models import PolicyHolderInsuree
 from contribution.models import Premium, Payer
-from contribution_plan.models import ContributionPlanBundleDetails
+from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
+from payment.models import Payment, PaymentDetail
+from payment.services import update_or_create_payment
 
 
 class ContractUpdateError(Exception):
@@ -54,7 +56,7 @@ class Contract(object):
             c = ContractModel(**contract)
             c.state = ContractModel.STATE_DRAFT
             c.save(username=self.user.username)
-            uuid_string = str(c.id)
+            uuid_string = f"{c.id}"
             # check if the PH is set
             if "policy_holder_id" in contract:
                 # run services updateFromPHInsuree and Contract Valuation
@@ -63,7 +65,7 @@ class Contract(object):
                     "policy_holder_id": contract["policy_holder_id"],
                     "contract_id": uuid_string,
                 })
-                total_amount = self.__evaluate_contract_valuation(
+                total_amount = self.evaluate_contract_valuation(
                     contract_details_result=result_ph_insuree,
                 )["total_amount"]
                 c.amount_notified = total_amount
@@ -71,7 +73,7 @@ class Contract(object):
             c.json_ext = json.dumps(_save_json_external(
                 user_id=historical_record.user_updated.id,
                 datetime=historical_record.date_updated,
-                message="create contract status " + str(historical_record.state)
+                message=f"create contract status {historical_record.state}"
             ), cls=DjangoJSONEncoder)
             c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
@@ -80,12 +82,12 @@ class Contract(object):
             return _output_exception(model_name="Contract", method="create", exception=exc)
         return _output_result_success(dict_representation=dict_representation)
 
-    def __evaluate_contract_valuation(self, contract_details_result):
+    def evaluate_contract_valuation(self, contract_details_result, save=False):
         ccpd = ContractContributionPlanDetails(user=self.user)
         result_contract_valuation = ccpd.contract_valuation(
             contract_contribution_plan_details={
                 "contract_details": contract_details_result["data"],
-                "save": False,
+                "save": save,
             }
         )
         return result_contract_valuation["data"]
@@ -149,7 +151,7 @@ class Contract(object):
             message="update contract status " + str(historical_record.state)
         ), cls=DjangoJSONEncoder)
         updated_contract.save(username=self.user.username)
-        uuid_string = str(updated_contract.id)
+        uuid_string = f"{updated_contract.id}"
         dict_representation = model_to_dict(updated_contract)
         dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
         return dict_representation
@@ -161,14 +163,14 @@ class Contract(object):
             if not self.user.has_perms(ContractConfig.gql_mutation_submit_contract_perms):
                 raise PermissionError("Unauthorized")
 
-            contract_id = str(contract["id"])
+            contract_id = f"{contract['id']}"
             contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
                 self.__validate_submission(contract_to_submit=contract_to_submit)
             )
             # contract valuation
-            contract_contribution_plan_details = self.__evaluate_contract_valuation(
+            contract_contribution_plan_details = self.evaluate_contract_valuation(
                 contract_details_result=contract_details_list,
             )
             contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
@@ -179,8 +181,8 @@ class Contract(object):
             contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
             signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
             dict_representation = model_to_dict(contract_to_submit)
-            dict_representation["id"], dict_representation["uuid"] = (str(contract_id), str(contract_id))
-            return dict_representation
+            dict_representation["id"], dict_representation["uuid"] = (contract_id, contract_id)
+            return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="submit", exception=exc)
 
@@ -203,16 +205,53 @@ class Contract(object):
     def __gather_policy_holder_insuree(self, contract_details):
         return [
             {
-                "id": str(cd["id"]),
-                "contribution_plan_bundle": str(cd["contribution_plan_bundle_id"]),
-                "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd["insuree_id"]).first().last_policy.id,
+                "id": f"{cd['id']}",
+                "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
+                "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd['insuree_id']).first().last_policy.id,
+                "contribution_id": Premium.objects.filter(uuid=json.loads(cd['json_ext'])["contribution_uuid"]).first().id if cd["json_ext"] else None
             }
             for cd in contract_details
         ]
 
+    @check_authentication
+    def approve(self, contract):
+        try:
+            # check for submittion right perms/authorites
+            if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+                raise PermissionError("Unauthorized")
+            contract_id = f"{contract['id']}"
+            contract_to_approve = ContractModel.objects.filter(id=contract_id).first()
+            # variable to check if we have right for submit
+            state_right = self.__check_rights_by_status(contract_to_approve.state)
+            # check if we can submit
+            if state_right is not "approvable":
+                raise ContractUpdateError("You cannot approve this contract! The status of conntract is not Negotiable")
+            contract_details_list = {}
+            contract_details_list["data"] = self.__gather_policy_holder_insuree(
+                list(ContractDetailsModel.objects.filter(contract_id=contract_to_approve.id).values())
+            )
+            # send signal - approve contract
+            payment_service = PaymentService(user=self.user)
+            contract_approved = signal_contract_approve.send(
+                sender=ContractModel,
+                contract=contract_to_approve,
+                user=self.user,
+                contract_details_list=contract_details_list,
+                service_object=self,
+                payment_service=payment_service
+            )
+            print(contract_approved)
+            dict_representation = model_to_dict(contract_approved[1])
+            id_contract_approved = f"{contract_to_approve.id}"
+            dict_representation["id"], dict_representation["uuid"] = id_contract_approved, id_contract_approved
+            return _output_result_success(dict_representation=dict_representation)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="approve", exception=exc)
+
     def amend(self, submit):
         pass
 
+    @check_authentication
     def delete(self, contract):
         try:
             # check rights for delete contract
@@ -251,13 +290,13 @@ class ContractDetails(object):
                         **{
                             "contract_id": contract_details["contract_id"],
                             "insuree_id": phi.insuree.id,
-                            "contribution_plan_bundle_id": str(phi.contribution_plan_bundle.id),
+                            "contribution_plan_bundle_id": f"{phi.contribution_plan_bundle.id}",
                         }
                     )
                     cd.save(self.user)
-                    uuid_string = str(cd.id)
+                    uuid_string = f"{cd.id}"
                     dict_representation = model_to_dict(cd)
-                    dict_representation["id"], dict_representation["uuid"] = (str(uuid_string), str(uuid_string))
+                    dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
                     dict_representation["policy_id"] = phi.last_policy.id
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
@@ -283,9 +322,9 @@ class ContractContributionPlanDetails(object):
                 ccpd = ContractContributionPlanDetailsModel(
                     **{
                         "contract_details_id": contract_details["id"],
-                        "contribution_plan_id": str(cpbd.contribution_plan.id),
+                        "contribution_plan_id": f"{cpbd.contribution_plan.id}",
                         "policy_id": contract_details["policy_id"],
-                        "contribution_id": contract_details["contract_id"] if "contract_id" in contract_details else None
+                        "contribution_id": contract_details["contribution_id"] if "contribution_id" in contract_details else None
                     }
                 )
                 # TODO here will be a function from calculation module
@@ -297,8 +336,8 @@ class ContractContributionPlanDetails(object):
                 ccpd_record["calculated_amount"] = calculated_amount
                 if contract_contribution_plan_details["save"]:
                     ccpd.save(self.user)
-                    uuid_string = str(ccpd.id)
-                    ccpd_record['id'], ccpd_record['uuid'] = (str(uuid_string), str(uuid_string))
+                    uuid_string = f"{ccpd.id}"
+                    ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
                 ccpd_list.append(ccpd_record)
             dict_representation['total_amount'] = total_amount
             dict_representation['contribution_plan_details'] = ccpd_list
@@ -348,20 +387,54 @@ class ContractContributionPlanDetails(object):
             )
 
 
-@core.comparable
-class Payment(object):
+class PaymentService(object):
 
-    def __init__(self, policy_holder):
-        self.policy_holder = policy_holder
-        pass
+    def __init__(self, user):
+        self.user = user
 
-    def __eq__(self, other):
-        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+    @check_authentication
+    def create(self, payment, payment_details=None):
+        try:
+            dict_representation = {}
+            payment_list = []
+            from core import datetime
+            now = datetime.datetime.now()
+            p = update_or_create_payment(data=payment, user=self.user)
+            dict_representation = model_to_dict(p)
+            dict_representation['id'], dict_representation['uuid'] = (p.id, p.uuid)
+            if payment_details:
+                for payment_detail in payment_details:
+                    pd = PaymentDetail.objects.create(
+                        payment=Payment.objects.get(id=p.id),
+                        audit_user_id=-1,
+                        validity_from=now,
+                        product_code=payment_detail["product_code"],
+                        insurance_number=payment_detail["insurance_number"],
+                    )
+                    pd_record = model_to_dict(pd)
+                    pd_record['id'] = pd.id
+                    payment_list.append(pd_record)
+            dict_representation["payment_details"] = payment_list
+            return _output_result_success(dict_representation=dict_representation)
+        except Exception as exc:
+            return _output_exception(
+                model_name="Payment",
+                method="createContribution",
+                exception=exc
+            )
+
+    def collect_payment_details(self, contract_contribution_plan_details):
+        payment_details_data = []
+        for ccpd in contract_contribution_plan_details:
+            product_code = ContributionPlan.objects.get(id=ccpd["contribution_plan"]).benefit_plan.code
+            insurance_number = ContractDetailsModel.objects.get(id=ccpd["contract_details"]).insuree.chf_id
+            payment_details_data.append({
+                "product_code": product_code,
+                "insurance_number": insurance_number
+            })
+        return payment_details_data
 
     def submit(self, payment):
-        pass
-
-    def create(self, payment):
         pass
 
     def update(self, payment):
@@ -378,7 +451,7 @@ def _output_exception(model_name, method, exception):
     return {
         "success": False,
         "message": f"Failed to {method} {model_name}",
-        "detail": str(exception),
+        "detail": f"{exception}",
         "data": "",
     }
 
