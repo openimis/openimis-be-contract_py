@@ -123,6 +123,8 @@ class Contract(object):
                         updated_contract=updated_contract
                     )
                 )
+            if self.__check_rights_by_status(updated_contract) == "cannot_update":
+                raise ContractUpdateError("In that state you cannot update")
         except Exception as exc:
             return _output_exception(model_name="Contract", method="update", exception=exc)
 
@@ -177,7 +179,7 @@ class Contract(object):
             contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
             # create contract contribution based on service
             ccpd = ContractContributionPlanDetails(user=self.user)
-            result_contribution = ccpd.create_contribution(contract_contribution_plan_details)
+            ccpd.create_contribution(contract_contribution_plan_details)
             # send signal
             contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
             signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
@@ -217,7 +219,7 @@ class Contract(object):
     @check_authentication
     def approve(self, contract):
         try:
-            # check for submittion right perms/authorites
+            # check for approve/ask for change right perms/authorites
             if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
                 raise PermissionError("Unauthorized")
             contract_id = f"{contract['id']}"
@@ -226,7 +228,7 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_approve.state)
             # check if we can submit
             if state_right is not "approvable":
-                raise ContractUpdateError("You cannot approve this contract! The status of conntract is not Negotiable")
+                raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable")
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
                 list(ContractDetailsModel.objects.filter(contract_id=contract_to_approve.id).values())
@@ -248,6 +250,27 @@ class Contract(object):
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="approve", exception=exc)
+
+    @check_authentication
+    def counter(self, contract):
+        try:
+            # check for approve/ask for change right perms/authorites
+            if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+                raise PermissionError("Unauthorized")
+            contract_id = f"{contract['id']}"
+            contract_to_counter = ContractModel.objects.filter(id=contract_id).first()
+            # variable to check if we have right to approve
+            state_right = self.__check_rights_by_status(contract_to_counter.state)
+            # check if we can submit
+            if state_right is not "approvable":
+                raise ContractUpdateError("You cannot counter this contract! The status of contract is not Negotiable")
+            contract_to_counter.state = ContractModel.STATE_COUNTER
+            signal_contract.send(sender=ContractModel, contract=contract_to_counter, user=self.user)
+            dict_representation = model_to_dict(contract_to_counter)
+            dict_representation["id"], dict_representation["uuid"] = (contract_id, contract_id)
+            return _output_result_success(dict_representation=dict_representation)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="counter", exception=exc)
 
     def amend(self, submit):
         pass
@@ -360,25 +383,26 @@ class ContractContributionPlanDetails(object):
             for ccpd in contract_contribution_plan_details["contribution_plan_details"]:
                 contract_details = ContractDetailsModel.objects.get(id=f"{ccpd['contract_details']}")
                 # create the contributions based on the ContractContributionPlanDetails
-                contribution = Premium.objects.create(
-                  **{
-                       "policy_id": ccpd["policy"],
-                       "amount": ccpd["calculated_amount"],
-                       "audit_user_id": -1,
-                       "pay_date": now,
-                       # TODO Temporary value pay_type - I have to get to know about this field what should be here
-                       #  also ask about audit_user_id and pay_date value
-                       "pay_type": " ",
-                    }
-                )
-                contract_details.json_ext = json.dumps(
-                    {"contribution_uuid": contribution.uuid},
-                    cls=DjangoJSONEncoder
-                )
-                contract_details.save(self.user)
-                contribution_record = model_to_dict(contribution)
-                contribution_list.append(contribution_record)
-            dict_representation["contributions"] = contribution_list
+                if ccpd["contribution"] is None:
+                    contribution = Premium.objects.create(
+                      **{
+                           "policy_id": ccpd["policy"],
+                           "amount": ccpd["calculated_amount"],
+                           "audit_user_id": -1,
+                           "pay_date": now,
+                           # TODO Temporary value pay_type - I have to get to know about this field what should be here
+                           #  also ask about audit_user_id and pay_date value
+                           "pay_type": " ",
+                      }
+                    )
+                    contract_details.json_ext = json.dumps(
+                        {"contribution_uuid": contribution.uuid},
+                        cls=DjangoJSONEncoder
+                    )
+                    contract_details.save(self.user)
+                    contribution_record = model_to_dict(contribution)
+                    contribution_list.append(contribution_record)
+                    dict_representation["contributions"] = contribution_list
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(
