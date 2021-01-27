@@ -12,6 +12,7 @@ from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
 from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
+from payment.models import Payment, PaymentDetail
 from contract import schema as contract_schema
 from graphene import Schema
 from graphene.test import Client
@@ -254,7 +255,7 @@ class MutationTestCreate(TestCase):
             (version_after_update, result[0]['node']['version'])
         )
 
-    def test_mutation_contract_create_submit(self):
+    def test_mutation_contract_create_submit_approve(self):
         # create contract for contract with policy holder with two phinsuree
         policy_holder = create_test_policy_holder()
 
@@ -272,7 +273,7 @@ class MutationTestCreate(TestCase):
 
         time_stamp = datetime.datetime.now()
         input_param = {
-            "code": "GHT",
+            "code": "TVB",
             "policyHolderId": str(policy_holder.id)
         }
         self.add_mutation("createContract", input_param)
@@ -286,15 +287,29 @@ class MutationTestCreate(TestCase):
             "id": str(converted_id_contract),
         }
         self.add_mutation("submitContract", input_param)
+        self.find_by_exact_attributes_query(
+            "contract",
+            params=input_param,
+        )["edges"]
+        self.add_mutation("approveContract", input_param)
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
         )["edges"]
-        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
         result_state = result[0]['node']['state']
-        expected_state = 4
-
+        expected_state = 5
         # tear down the test data
+        payment_uuid = result[0]['node']["paymentReference"].split('payment_imis_id:')[1]
+        # tear down the test data
+        PaymentDetail.objects.filter(payment__uuid=payment_uuid).delete()
+        Payment.objects.filter(uuid=payment_uuid).delete()
+        # ContractContributionPlanDetails.objects.filter()
+        list_cd = list(ContractDetails.objects.filter(contract_id=converted_id_contract).values('id', 'json_ext'))
+        for cd in list_cd:
+            json_ext = cd["json_ext"]
+            contribution_uuid = json.loads(json_ext)["contribution_uuid"]
+            ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
+            Premium.objects.filter(uuid=contribution_uuid).delete()
         ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
         Contract.objects.filter(id=str(converted_id_contract)).delete()
         PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
@@ -360,6 +375,7 @@ class MutationTestCreate(TestCase):
                     {'amountNotified' if query_type =='contract' else '' }
                     {'amountRectified' if query_type =='contract' else '' }
                     {'state' if query_type =='contract' else '' }
+                    {'paymentReference' if query_type =='contract' else '' }
                   }}
                   cursor
                 }}

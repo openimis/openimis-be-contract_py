@@ -46,6 +46,10 @@ class ContractSubmitInputType(OpenIMISMutation.Input):
     id = graphene.UUID(required=True)
 
 
+class ContractApproveInputType(OpenIMISMutation.Input):
+    id = graphene.UUID(required=True)
+
+
 class ContractDetailsCreateInputType(OpenIMISMutation.Input):
     id = graphene.UUID(required=False)
     contract_id = graphene.UUID(required=True)

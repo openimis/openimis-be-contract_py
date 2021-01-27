@@ -33,7 +33,8 @@ def on_contract_approve_signal(sender, **kwargs):
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
     # STATE_EXECUTABLE
     contract_to_approve.state = 5
-    approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user, payment_uuid=result_payment["data"]["uuid"])
+    contract_to_approve.payment_reference = f"payment_imis_id:{result_payment['data']['uuid']}"
+    approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)
     return approved_contract
 
 
@@ -52,15 +53,14 @@ def __save_json_external(user_id, datetime, message):
     }
 
 
-def __save_or_update_contract(contract, user, payment_uuid=None):
+def __save_or_update_contract(contract, user):
     contract.save(username=user.username)
     historical_record = contract.history.all().first()
     contract.json_ext = json.dumps(__save_json_external(
         user_id=historical_record.user_updated.id,
         datetime=historical_record.date_updated,
         message=f"contract updated - state "
-                f"{historical_record.state} "
-                f"with payment_uuid={payment_uuid if payment_uuid else ''}"
+                f"{historical_record.state}"
     ), cls=DjangoJSONEncoder)
     contract.save(username=user.username)
     return contract

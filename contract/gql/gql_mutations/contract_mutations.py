@@ -1,10 +1,10 @@
 from core.gql.gql_mutations import DeleteInputType
 from core.gql.gql_mutations.base_mutation  import BaseMutation, BaseDeleteMutation
 from .mutations import ContractCreateMutationMixin, ContractUpdateMutationMixin, \
-    ContractDeleteMutationMixin, ContractSubmitMutationMixin
+    ContractDeleteMutationMixin, ContractSubmitMutationMixin, ContractApproveMutationMixin
 from contract.models import Contract
 from contract.gql.gql_mutations.input_types import ContractCreateInputType, ContractUpdateInputType, \
-    ContractSubmitInputType
+    ContractSubmitInputType, ContractApproveInputType
 
 
 class CreateContractMutation(ContractCreateMutationMixin, BaseMutation):
@@ -40,4 +40,13 @@ class SubmitContractMutation(ContractSubmitMutationMixin, BaseMutation):
     _model = Contract
 
     class Input(ContractSubmitInputType):
+        pass
+
+
+class ApproveContractMutation(ContractApproveMutationMixin, BaseMutation):
+    _mutation_class = "ApproveContractMutation"
+    _mutation_module = "contract"
+    _model = Contract
+
+    class Input(ContractApproveInputType):
         pass
