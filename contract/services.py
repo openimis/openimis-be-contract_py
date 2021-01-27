@@ -270,7 +270,7 @@ class Contract(object):
             dict_representation["id"], dict_representation["uuid"] = (contract_id, contract_id)
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
-            return _output_exception(model_name="Contract", method="approve", exception=exc)
+            return _output_exception(model_name="Contract", method="counter", exception=exc)
 
     def amend(self, submit):
         pass
