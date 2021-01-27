@@ -207,7 +207,7 @@ class ServiceTestPolicyHolder(TestCase):
                                               contribution_plan_bundle=contribution_plan_bundle)
 
         contract = {
-            "code": "MTX",
+            "code": "MTPS",
             "policy_holder_id": str(policy_holder.id)
         }
         response = self.contract_service.create(contract)
@@ -220,7 +220,7 @@ class ServiceTestPolicyHolder(TestCase):
         response = self.contract_service.approve(contract)
         expected_state = 5
         result_state = response["data"]["state"]
-        payment_uuid = response["data"]["json_ext"].split('payment_uuid=')[1]
+        payment_uuid = response["data"]["payment_reference"].split('payment_imis_id:')[1]
         # tear down the test data
         PaymentDetail.objects.filter(payment__uuid=payment_uuid).delete()
         Payment.objects.filter(uuid=payment_uuid).delete()
