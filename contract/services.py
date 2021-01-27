@@ -3,6 +3,7 @@ import json
 
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import AnonymousUser
+from django.core.mail import send_mail, BadHeaderError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 
@@ -221,7 +222,7 @@ class Contract(object):
                 raise PermissionError("Unauthorized")
             contract_id = f"{contract['id']}"
             contract_to_approve = ContractModel.objects.filter(id=contract_id).first()
-            # variable to check if we have right for submit
+            # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_approve.state)
             # check if we can submit
             if state_right is not "approvable":
@@ -240,10 +241,10 @@ class Contract(object):
                 service_object=self,
                 payment_service=payment_service
             )
-            print(contract_approved)
-            dict_representation = model_to_dict(contract_approved[1])
+            dict_representation = model_to_dict(contract_approved[0][1])
             id_contract_approved = f"{contract_to_approve.id}"
             dict_representation["id"], dict_representation["uuid"] = id_contract_approved, id_contract_approved
+            # TODO - send email to the PH  - UC-8 send payment notification by email
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="approve", exception=exc)
@@ -410,6 +411,7 @@ class PaymentService(object):
                         validity_from=now,
                         product_code=payment_detail["product_code"],
                         insurance_number=payment_detail["insurance_number"],
+                        expected_amount=payment_detail["expected_amount"]
                     )
                     pd_record = model_to_dict(pd)
                     pd_record['id'] = pd.id
@@ -428,9 +430,11 @@ class PaymentService(object):
         for ccpd in contract_contribution_plan_details:
             product_code = ContributionPlan.objects.get(id=ccpd["contribution_plan"]).benefit_plan.code
             insurance_number = ContractDetailsModel.objects.get(id=ccpd["contract_details"]).insuree.chf_id
+            expected_amount = ccpd["calculated_amount"]
             payment_details_data.append({
                 "product_code": product_code,
-                "insurance_number": insurance_number
+                "insurance_number": insurance_number,
+                "expected_amount": expected_amount
             })
         return payment_details_data
 

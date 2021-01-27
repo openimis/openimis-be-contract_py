@@ -12,6 +12,7 @@ from contribution_plan.tests.helpers import create_test_contribution_plan, \
 from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
 from policy.models import Policy
 from core.models import User
+from payment.models import Payment, PaymentDetail
 
 
 class ServiceTestPolicyHolder(TestCase):
@@ -189,7 +190,7 @@ class ServiceTestPolicyHolder(TestCase):
             "ContractUpdateError: You cannot update already set PolicyHolder in Contract", failed,
         )
 
-    def test_contract_create_submit(self):
+    def test_contract_create_submit_approve(self):
         # create contract for contract with policy holder with two phinsuree
         policy_holder = create_test_policy_holder()
 
@@ -215,15 +216,20 @@ class ServiceTestPolicyHolder(TestCase):
         contract = {
             "id": contract_id,
         }
-        response = self.contract_service.submit(contract)
-        expected_state = 4
-        result_state = response["state"]
-
+        self.contract_service.submit(contract)
+        response = self.contract_service.approve(contract)
+        expected_state = 5
+        result_state = response["data"]["state"]
+        payment_uuid = response["data"]["json_ext"].split('payment_uuid=')[1]
         # tear down the test data
+        PaymentDetail.objects.filter(payment__uuid=payment_uuid).delete()
+        Payment.objects.filter(uuid=payment_uuid).delete()
+        # ContractContributionPlanDetails.objects.filter()
         list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id', 'json_ext'))
         for cd in list_cd:
             json_ext = cd["json_ext"]
             contribution_uuid = json.loads(json_ext)["contribution_uuid"]
+            ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
             Premium.objects.filter(uuid=contribution_uuid).delete()
         ContractDetails.objects.filter(contract_id=contract_id).delete()
         Contract.objects.filter(id=contract_id).delete()

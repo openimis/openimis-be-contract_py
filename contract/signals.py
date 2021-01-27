@@ -30,23 +30,10 @@ def on_contract_approve_signal(sender, **kwargs):
         save=True
     )
     contract_to_approve.amount_rectified = contract_contribution_plan_details["total_amount"]
-    from core import datetime
-    now = datetime.datetime.now()
-    # format payment data
-    payment_data = {
-        "expected_amount": contract_to_approve.amount_rectified,
-        "request_date": now,
-    }
-    payment_details_data = payment_service.collect_payment_details(contract_contribution_plan_details["contribution_plan_details"])
-    result_payment = payment_service.create(payment=payment_data, payment_details=payment_details_data)
+    result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
     # STATE_EXECUTABLE
     contract_to_approve.state = 5
-    contract_to_approve.json_ext = json.dumps(
-        {"payment_uuid": result_payment["data"]["uuid"]},
-        cls=DjangoJSONEncoder
-    )
-    approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)
-    print(approved_contract)
+    approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user, payment_uuid=result_payment["data"]["uuid"])
     return approved_contract
 
 
@@ -65,17 +52,27 @@ def __save_json_external(user_id, datetime, message):
     }
 
 
-def __save_or_update_contract(contract, user):
+def __save_or_update_contract(contract, user, payment_uuid=None):
     contract.save(username=user.username)
     historical_record = contract.history.all().first()
     contract.json_ext = json.dumps(__save_json_external(
         user_id=historical_record.user_updated.id,
         datetime=historical_record.date_updated,
-        message=f"contract updated - state {historical_record.state}"
+        message=f"contract updated - state "
+                f"{historical_record.state} "
+                f"with payment_uuid={payment_uuid if payment_uuid else ''}"
     ), cls=DjangoJSONEncoder)
-    print("saved")
     contract.save(username=user.username)
     return contract
 
 
-#def __create_paymen(contract)
+def __create_payment(contract, payment_service, contract_cpd):
+    from core import datetime
+    now = datetime.datetime.now()
+    # format payment data
+    payment_data = {
+        "expected_amount": contract.amount_rectified,
+        "request_date": now,
+    }
+    payment_details_data = payment_service.collect_payment_details(contract_cpd["contribution_plan_details"])
+    return payment_service.create(payment=payment_data, payment_details=payment_details_data)

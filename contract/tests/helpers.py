@@ -69,7 +69,7 @@ def create_test_contract_contribution_plan_details(contribution_plan=None, polic
 
     if not policy:
         policy = create_test_policy(
-            product=create_test_product("TestCode"),
+            product=create_test_product("TestCode", custom_props={"insurance_period": 12,}),
             insuree=create_test_insuree())
 
     if not contract_details:
