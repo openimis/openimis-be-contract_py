@@ -421,10 +421,11 @@ class PaymentService(object):
         except Exception as exc:
             return _output_exception(
                 model_name="Payment",
-                method="createContribution",
+                method="createPayment",
                 exception=exc
             )
 
+    @check_authentication
     def collect_payment_details(self, contract_contribution_plan_details):
         payment_details_data = []
         for ccpd in contract_contribution_plan_details:
