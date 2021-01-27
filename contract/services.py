@@ -271,7 +271,6 @@ class Contract(object):
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="approve", exception=exc)
-        pass
 
     def amend(self, submit):
         pass
