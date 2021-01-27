@@ -89,3 +89,30 @@ class ContractDeleteMutationMixin:
         contract_service = ContractService(user=user)
         output_data = contract_service.delete(contract=contract)
         return output_data
+
+
+class ContractSubmitMutationMixin:
+
+    @property
+    def _model(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_submit_contract_perms):
+            raise ValidationError("mutation.authentication_required")
+
+    @classmethod
+    def _mutate(cls, user, **data):
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        output = cls.submit_contract(user=user, contract=data)
+        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+
+    @classmethod
+    def submit_contract(cls, user, contract):
+        contract_service = ContractService(user=user)
+        output_data = contract_service.submit(contract=contract)
+        return output_data

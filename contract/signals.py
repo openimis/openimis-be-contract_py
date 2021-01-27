@@ -5,24 +5,40 @@ from core.signals import Signal
 from django.core.serializers.json import DjangoJSONEncoder
 
 _contract_signal_params = ["contract", "user"]
+_contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service"]
 signal_contract = Signal(providing_args=_contract_signal_params)
+signal_contract_approve = Signal(providing_args=_contract_signal_params)
 
 
 def on_contract_signal(sender, **kwargs):
     contract = kwargs["contract"]
     user = kwargs["user"]
-    contract.save(username=user.username)
-    historical_record = contract.history.all().first()
-    contract.json_ext = json.dumps(__save_json_external(
-        user_id=historical_record.user_updated.id,
-        datetime=historical_record.date_updated,
-        message=f"contract updated - state {historical_record.state}"
-    ), cls=DjangoJSONEncoder)
-    contract.save(username=user.username)
+    __save_or_update_contract(contract=contract, user=user)
     return f"contract updated - state {contract.state}"
 
 
+def on_contract_approve_signal(sender, **kwargs):
+    # approve scenario
+    user = kwargs["user"]
+    contract_to_approve = kwargs["contract"]
+    contract_details_list = kwargs["contract_details_list"]
+    contract_service = kwargs["service_object"]
+    payment_service = kwargs["payment_service"]
+    # contract valuation
+    contract_contribution_plan_details = contract_service.evaluate_contract_valuation(
+        contract_details_result=contract_details_list,
+        save=True
+    )
+    contract_to_approve.amount_rectified = contract_contribution_plan_details["total_amount"]
+    result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
+    # STATE_EXECUTABLE
+    contract_to_approve.state = 5
+    approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user, payment_uuid=result_payment["data"]["uuid"])
+    return approved_contract
+
+
 signal_contract.connect(on_contract_signal, dispatch_uid="on_contract_signal")
+signal_contract_approve.connect(on_contract_approve_signal, dispatch_uid="on_contract_approve_signal")
 
 
 def __save_json_external(user_id, datetime, message):
@@ -34,3 +50,29 @@ def __save_json_external(user_id, datetime, message):
             "msg": message
         }]
     }
+
+
+def __save_or_update_contract(contract, user, payment_uuid=None):
+    contract.save(username=user.username)
+    historical_record = contract.history.all().first()
+    contract.json_ext = json.dumps(__save_json_external(
+        user_id=historical_record.user_updated.id,
+        datetime=historical_record.date_updated,
+        message=f"contract updated - state "
+                f"{historical_record.state} "
+                f"with payment_uuid={payment_uuid if payment_uuid else ''}"
+    ), cls=DjangoJSONEncoder)
+    contract.save(username=user.username)
+    return contract
+
+
+def __create_payment(contract, payment_service, contract_cpd):
+    from core import datetime
+    now = datetime.datetime.now()
+    # format payment data
+    payment_data = {
+        "expected_amount": contract.amount_rectified,
+        "request_date": now,
+    }
+    payment_details_data = payment_service.collect_payment_details(contract_cpd["contribution_plan_details"])
+    return payment_service.create(payment=payment_data, payment_details=payment_details_data)
