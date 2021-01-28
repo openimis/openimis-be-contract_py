@@ -25,8 +25,6 @@ class ContractGQLType(DjangoObjectType):
             "amendment": ["exact"],
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
             "date_updated": ["exact", "lt", "lte", "gt", "gte"],
-            "date_valid_from": ["exact", "lt", "lte", "gt", "gte"],
-            "date_valid_to": ["exact", "lt", "lte", "gt", "gte"],
             "is_deleted": ["exact"],
             "version": ["exact"],
         }

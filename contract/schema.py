@@ -2,6 +2,7 @@ import graphene
 import graphene_django_optimizer as gql_optimizer
 
 from core.schema import OrderedDjangoFilterConnectionField
+from core.utils import filter_validity_business_model
 from contract.models import Contract, ContractDetails, \
     ContractContributionPlanDetails
 from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
@@ -21,11 +22,13 @@ class Query(graphene.ObjectType):
         ContractGQLType,
         insuree=graphene.UUID(),
         orderBy=graphene.List(of_type=graphene.String),
+        dateValidFrom__Gte=graphene.DateTime(),
+        dateValidTo__Lte=graphene.DateTime()
     )
 
     contract_details = OrderedDjangoFilterConnectionField(
         ContractDetailsGQLType,
-        orderBy=graphene.List(of_type=graphene.String)
+        orderBy=graphene.List(of_type=graphene.String),
     )
 
     contract_contribution_plan_details = OrderedDjangoFilterConnectionField(
@@ -48,7 +51,7 @@ class Query(graphene.ObjectType):
                 contractdetails__insuree__uuid=insuree
             )
 
-        return gql_optimizer.query(query.all(), info)
+        return gql_optimizer.query(query.filter(*filter_validity_business_model(**kwargs)), info)
 
     def resolve_contract_details(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
