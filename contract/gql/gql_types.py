@@ -1,7 +1,8 @@
 import graphene
 from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
-from contract.models import Contract, ContractDetails, ContractContributionPlanDetails, ContractMutation
+from contract.models import Contract, ContractDetails, ContractContributionPlanDetails, \
+    ContractMutation, ContractDetailsMutation
 from insuree.schema import InsureeGQLType
 from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
 from contribution.gql_queries import PremiumGQLType
@@ -85,3 +86,8 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
 class ContractMutationGQLType(DjangoObjectType):
     class Meta:
         model = ContractMutation
+
+
+class ContractDetailsMutationGQLType(DjangoObjectType):
+    class Meta:
+        model = ContractDetails
