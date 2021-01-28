@@ -30,6 +30,7 @@ class Query(graphene.ObjectType):
 
     contract_details = OrderedDjangoFilterConnectionField(
         ContractDetailsGQLType,
+        client_mutation_id=graphene.String(),
         orderBy=graphene.List(of_type=graphene.String),
     )
 
@@ -59,8 +60,12 @@ class Query(graphene.ObjectType):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
            raise PermissionError("Unauthorized")
 
-        query = ContractDetails.objects.all()
-        return gql_optimizer.query(query.all(), info)
+        filters = []
+        client_mutation_id = kwargs.get("client_mutation_id", None)
+        if client_mutation_id:
+            filters.append(Q(mutations__mutation__client_mutation_id=client_mutation_id))
+
+        return gql_optimizer.query(ContractDetails.objects.filter(*filters).all(), info)
 
     def resolve_contract_contribution_plan_details(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):

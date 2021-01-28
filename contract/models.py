@@ -143,3 +143,12 @@ class ContractMutation(core_models.UUIDModel, core_models.ObjectMutation):
     class Meta:
         managed = True
         db_table = "contract_contractMutation"
+
+
+class ContractDetailsMutation(core_models.UUIDModel, core_models.ObjectMutation):
+    contract_detail = models.ForeignKey(ContractDetails, models.DO_NOTHING, related_name='mutations')
+    mutation = models.ForeignKey(core_models.MutationLog, models.DO_NOTHING, related_name='contract_details')
+
+    class Meta:
+        managed = True
+        db_table = "contract_contractDetailsMutation"
