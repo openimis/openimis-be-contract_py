@@ -1,7 +1,7 @@
 import graphene
 from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
-from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
+from contract.models import Contract, ContractDetails, ContractContributionPlanDetails, ContractMutation
 from insuree.schema import InsureeGQLType
 from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
 from contribution.gql_queries import PremiumGQLType
@@ -80,3 +80,8 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         @classmethod
         def get_queryset(clscls, queryset, info):
             return ContractContributionPlanDetails.get_queryset(queryset, info)
+
+
+class ContractMutationGQLType(DjangoObjectType):
+    class Meta:
+        model = ContractMutation

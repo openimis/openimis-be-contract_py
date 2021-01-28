@@ -134,3 +134,12 @@ class ContractContributionPlanDetails(core_models.HistoryModel):
 
     class Meta:
         db_table = 'tblContractContributionPlanDetails'
+
+
+class ContractMutation(core_models.UUIDModel, core_models.ObjectMutation):
+    contract = models.ForeignKey(Contract, models.DO_NOTHING, related_name='mutations')
+    mutation = models.ForeignKey(core_models.MutationLog, models.DO_NOTHING, related_name='contracts')
+
+    class Meta:
+        managed = True
+        db_table = "contract_contractMutation"
