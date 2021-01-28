@@ -90,4 +90,4 @@ class ContractMutationGQLType(DjangoObjectType):
 
 class ContractDetailsMutationGQLType(DjangoObjectType):
     class Meta:
-        model = ContractDetails
+        model = ContractDetailsMutation
