@@ -2,6 +2,7 @@ from core import TimeUtils
 from core.schema import OpenIMISMutation
 from core.gql.gql_mutations import ObjectNotExistException
 from contract.services import Contract as ContractService
+from contract.models import Contract, ContractMutation
 from contract.apps import ContractConfig
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
@@ -20,12 +21,18 @@ class ContractCreateMutationMixin:
 
     @classmethod
     def _mutate(cls, user, **data):
+        client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
             data.pop('client_mutation_id')
         if "client_mutation_label" in data:
             data.pop('client_mutation_label')
         output = cls.create_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        if output["success"]:
+           contract = Contract.objects.get(id=output["data"]["id"])
+           ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+           return None
+        else:
+           return f"Error! - {output['message']}: {output['detail']}"
 
     @classmethod
     def create_contract(cls, user, contract):

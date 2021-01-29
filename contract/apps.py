@@ -33,6 +33,7 @@ class ContractConfig(AppConfig):
     gql_mutation_renew_contract_perms = []
     gql_mutation_submit_contract_perms = []
     gql_mutation_approve_ask_for_change_contract_perms = []
+    gql_mutation_amend_contract_perms = []
     gql_mutation_create_payments_perms = []
     gql_mutation_update_payments_perms = []
     gql_mutation_delete_payments_perms = []
@@ -59,6 +60,9 @@ class ContractConfig(AppConfig):
         ]
         ContractConfig.gql_mutation_approve_ask_for_change_contract_perms = cfg[
             "gql_mutation_approve_ask_for_change_contract_perms"
+        ]
+        ContractConfig.gql_mutation_amend_contract_perms = cfg[
+            "gql_mutation_amend_contract_perms"
         ]
         ContractConfig.gql_mutation_create_payments_perms = cfg[
             "gql_mutation_create_payments_perms"

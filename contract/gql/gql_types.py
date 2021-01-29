@@ -1,7 +1,8 @@
 import graphene
 from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
-from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
+from contract.models import Contract, ContractDetails, ContractContributionPlanDetails, \
+    ContractMutation, ContractDetailsMutation
 from insuree.schema import InsureeGQLType
 from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
 from contribution.gql_queries import PremiumGQLType
@@ -25,8 +26,6 @@ class ContractGQLType(DjangoObjectType):
             "amendment": ["exact"],
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
             "date_updated": ["exact", "lt", "lte", "gt", "gte"],
-            "date_valid_from": ["exact", "lt", "lte", "gt", "gte"],
-            "date_valid_to": ["exact", "lt", "lte", "gt", "gte"],
             "is_deleted": ["exact"],
             "version": ["exact"],
         }
@@ -82,3 +81,13 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         @classmethod
         def get_queryset(clscls, queryset, info):
             return ContractContributionPlanDetails.get_queryset(queryset, info)
+
+
+class ContractMutationGQLType(DjangoObjectType):
+    class Meta:
+        model = ContractMutation
+
+
+class ContractDetailsMutationGQLType(DjangoObjectType):
+    class Meta:
+        model = ContractDetailsMutation
