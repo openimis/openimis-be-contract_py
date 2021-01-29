@@ -29,7 +29,7 @@ def on_contract_approve_signal(sender, **kwargs):
         contract_details_result=contract_details_list,
         save=True
     )
-    contract_to_approve.amount_rectified = contract_contribution_plan_details["total_amount"]
+    contract_to_approve.amount_due = contract_contribution_plan_details["total_amount"]
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
     # STATE_EXECUTABLE
     contract_to_approve.state = 5
