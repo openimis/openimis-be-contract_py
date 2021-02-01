@@ -1,8 +1,11 @@
 import json
 
+from .config import get_message_approved_contract
 from .models import Contract
 from core.signals import Signal
 from django.core.serializers.json import DjangoJSONEncoder
+from django.conf import settings
+from django.core.mail import send_mail, BadHeaderError
 
 _contract_signal_params = ["contract", "user"]
 _contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service"]
@@ -38,6 +41,14 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_to_approve.state = 5
     contract_to_approve.payment_reference = f"payment_imis_id:{result_payment['data']['uuid']}"
     approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)
+    email = __send_email_notify_payment(
+        code=contract_to_approve.code,
+        name=contract_to_approve.policy_holder.trade_name,
+        contact_name=contract_to_approve.policy_holder.contact_name,
+        amount_due=contract_to_approve.amount_due,
+        payment_reference=contract_to_approve.payment_reference,
+        email=contract_to_approve.policy_holder.email,
+    )
     return approved_contract
 
 
@@ -79,3 +90,24 @@ def __create_payment(contract, payment_service, contract_cpd):
     }
     payment_details_data = payment_service.collect_payment_details(contract_cpd["contribution_plan_details"])
     return payment_service.create(payment=payment_data, payment_details=payment_details_data)
+
+
+def __send_email_notify_payment(code, name, contact_name, amount_due, payment_reference, email):
+    try:
+        email = send_mail(
+            subject='Contract payment notification',
+            message=get_message_approved_contract(
+                language=settings.LANGUAGE_CODE.split('-')[0],
+                code=code,
+                name=name,
+                contact_name=contact_name,
+                due_amount=amount_due,
+                payment_reference=payment_reference
+            ),
+            from_email= settings.EMAIL_HOST_USER,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        return email
+    except BadHeaderError:
+        return ValueError('Invalid header found.')

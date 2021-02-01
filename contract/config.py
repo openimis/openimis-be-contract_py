@@ -92,3 +92,30 @@ CONTRACT_STATE = {
                 }
         }]
 }
+
+
+def get_message_approved_contract(code, name, contact_name, due_amount, payment_reference, language='en'):
+    message_payment_notification = {
+        "payment_notification":
+            {"en":
+                 F"""
+                 Dear {contact_name} 
+                 
+                 The contract {code} - {name} was approved.
+                 Please proceed to the payment of {due_amount} with the reference {payment_reference}. 
+                 
+                 Best regards, 
+                 """
+                ,
+             "fr":
+                 F"""
+                 Monsieur, Madame {contact_name}
+                 
+                 le contract {code} - {name} à été apprové.
+                 Veuillez faire un paiement de < CONTRACT - DUEAMOUNT > avec la référence {payment_reference}.
+                 
+                 Meilleurs Salutations 
+                 """
+             }
+    }
+    return message_payment_notification["payment_notification"][language]

@@ -5,7 +5,6 @@ from copy import copy
 
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import AnonymousUser
-from django.core.mail import send_mail, BadHeaderError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 
@@ -248,7 +247,6 @@ class Contract(object):
             dict_representation = model_to_dict(contract_approved[0][1])
             id_contract_approved = f"{contract_to_approve.id}"
             dict_representation["id"], dict_representation["uuid"] = id_contract_approved, id_contract_approved
-            # TODO - send email to the PH  - UC-8 send payment notification by email
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="approve", exception=exc)
