@@ -177,3 +177,30 @@ class ContractCounterMutationMixin:
         contract_service = ContractService(user=user)
         output_data = contract_service.counter(contract=contract)
         return output_data
+
+
+class ContractAmendMutationMixin:
+
+    @property
+    def _model(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_amend_contract_perms):
+            raise ValidationError("mutation.authentication_required")
+
+    @classmethod
+    def _mutate(cls, user, **data):
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        output = cls.amend_contract(user=user, contract=data)
+        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+
+    @classmethod
+    def amend_contract(cls, user, contract):
+        contract_service = ContractService(user=user)
+        output_data = contract_service.amend(contract=contract)
+        return output_data

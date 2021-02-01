@@ -32,6 +32,9 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_to_approve.amount_due = contract_contribution_plan_details["total_amount"]
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
     # STATE_EXECUTABLE
+    from core import datetime
+    now = datetime.datetime.now()
+    contract_to_approve.date_approved = now
     contract_to_approve.state = 5
     contract_to_approve.payment_reference = f"payment_imis_id:{result_payment['data']['uuid']}"
     approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)

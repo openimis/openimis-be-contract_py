@@ -208,7 +208,7 @@ class ServiceTestPolicyHolder(TestCase):
                                               contribution_plan_bundle=contribution_plan_bundle)
 
         contract = {
-            "code": "GST",
+            "code": "JKSA",
             "policy_holder_id": str(policy_holder.id),
             "date_valid_from": datetime.datetime(2020, 1, 1),
             "date_valid_to": datetime.datetime(2022, 6, 30),
@@ -219,6 +219,7 @@ class ServiceTestPolicyHolder(TestCase):
         contract = {
             "id": contract_id,
         }
+
         self.contract_service.submit(contract)
         self.contract_service.approve(contract)
         response = self.contract_service.amend(
@@ -227,10 +228,12 @@ class ServiceTestPolicyHolder(TestCase):
                 "date_valid_to": datetime.datetime(2024, 6, 30),
             }
         )
-        expected_state = 5
+        expected_state = 2
         result_state = response["data"]["state"]
         new_id = response["data"]["id"]
-        payment_uuid = response["data"]["payment_reference"].split('payment_imis_id:')[1]
+        contract_amended = Contract.objects.filter(id=contract_id).first()
+        payment_reference = contract_amended.payment_reference
+        payment_uuid = payment_reference.split('payment_imis_id:')[1]
         # tear down the test data
         PaymentDetail.objects.filter(payment__uuid=payment_uuid).delete()
         Payment.objects.filter(uuid=payment_uuid).delete()
@@ -240,8 +243,9 @@ class ServiceTestPolicyHolder(TestCase):
             ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
         for cd in list_cd:
             json_ext = cd["json_ext"]
-            contribution_uuid = json.loads(json_ext)["contribution_uuid"]
-            Premium.objects.filter(uuid=contribution_uuid).delete()
+            if cd["json_ext"]:
+                contribution_uuid = json.loads(json_ext)["contribution_uuid"]
+                Premium.objects.filter(uuid=contribution_uuid).delete()
         ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).delete()
         Contract.objects.filter(id__in=(contract_id, new_id)).delete()
         PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
