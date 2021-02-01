@@ -1,6 +1,8 @@
 import core
 import json
 
+from copy import copy
+
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import AnonymousUser
 from django.core.mail import send_mail, BadHeaderError
@@ -272,8 +274,58 @@ class Contract(object):
         except Exception as exc:
             return _output_exception(model_name="Contract", method="counter", exception=exc)
 
-    def amend(self, submit):
-        pass
+    @check_authentication
+    def amend(self, contract):
+        try:
+            # check for amend right perms/authorites
+            if not self.user.has_perms(ContractConfig.gql_mutation_amend_contract_perms):
+                raise PermissionError("Unauthorized")
+            contract_id = f"{contract['id']}"
+            contract_to_amend = ContractModel.objects.filter(id=contract_id).first()
+            # variable to check if we have right to amend contract
+            state_right = self.__check_rights_by_status(contract_to_amend.state)
+            # check if we can amend
+            if state_right is not "cannot_update" and contract_to_amend.state is not ContractModel.STATE_TERMINATED:
+                raise ContractUpdateError("You cannot amend this contract")
+            # create copy of the contract
+            amended_contract = copy(contract_to_amend)
+            amended_contract.id = None
+            amended_contract.amendment += 1
+            contract_to_amend.state = ContractModel.STATE_ADDENDUM
+            from core import datetime
+            contract_to_amend.date_valid_to = datetime.datetime.now()
+            # update contract - also copy contract details etc
+            contract.pop("id")
+            [setattr(amended_contract, key, contract[key]) for key in contract]
+            # check if chosen fields are not edited
+            if any(dirty_field in ["policy_holder", "code", "date_valid_from"] for dirty_field in amended_contract.get_dirty_fields(check_relationship=True)):
+                raise ContractUpdateError("You cannot update this field during amend contract!")
+            signal_contract.send(sender=ContractModel, contract=contract_to_amend, user=self.user)
+            signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
+            # copy also contract details and contract contribution plan details
+            self.__copy_details(contract_id=contract_id, amended_contract=amended_contract)
+            amended_contract_dict = model_to_dict(amended_contract)
+            id_new_amended = f"{amended_contract.id}"
+            amended_contract_dict["id"], amended_contract_dict["uuid"] = (id_new_amended, id_new_amended)
+            return _output_result_success(dict_representation=amended_contract_dict)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="amend", exception=exc)
+
+
+    def __copy_details(self, contract_id, amended_contract):
+        list_cd = ContractDetailsModel.objects.filter(contract_id=contract_id).all()
+        for cd in list_cd:
+            ccpd = ContractContributionPlanDetailsModel.objects.get(contract_details__id=f"{cd.id}")
+            cd_new = copy(cd)
+            cd_new.id = None
+            cd_new.contract = amended_contract
+            cd_new.save(username=self.user.username)
+            ccpd_new = copy(ccpd)
+            ccpd_new.id = None
+            ccpd_new.contract_details = cd_new
+            ccpd_new.save(username=self.user.username)
+
+
 
     @check_authentication
     def delete(self, contract):

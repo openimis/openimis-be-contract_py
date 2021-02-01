@@ -190,7 +190,7 @@ class ServiceTestPolicyHolder(TestCase):
             "ContractUpdateError: You cannot update already set PolicyHolder in Contract", failed,
         )
 
-    def test_contract_create_submit_approve(self):
+    def test_contract_create_submit_approve_amend(self):
         # create contract for contract with policy holder with two phinsuree
         policy_holder = create_test_policy_holder()
 
@@ -201,14 +201,17 @@ class ServiceTestPolicyHolder(TestCase):
             contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
         )
 
+        from core import datetime
         # create policy holder insuree
         for i in range(0, 3):
             create_test_policy_holder_insuree(policy_holder=policy_holder,
                                               contribution_plan_bundle=contribution_plan_bundle)
 
         contract = {
-            "code": "MTPS",
-            "policy_holder_id": str(policy_holder.id)
+            "code": "GST",
+            "policy_holder_id": str(policy_holder.id),
+            "date_valid_from": datetime.datetime(2020, 1, 1),
+            "date_valid_to": datetime.datetime(2022, 6, 30),
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -217,22 +220,30 @@ class ServiceTestPolicyHolder(TestCase):
             "id": contract_id,
         }
         self.contract_service.submit(contract)
-        response = self.contract_service.approve(contract)
+        self.contract_service.approve(contract)
+        response = self.contract_service.amend(
+            {
+                "id": contract_id,
+                "date_valid_to": datetime.datetime(2024, 6, 30),
+            }
+        )
         expected_state = 5
         result_state = response["data"]["state"]
+        new_id = response["data"]["id"]
         payment_uuid = response["data"]["payment_reference"].split('payment_imis_id:')[1]
         # tear down the test data
         PaymentDetail.objects.filter(payment__uuid=payment_uuid).delete()
         Payment.objects.filter(uuid=payment_uuid).delete()
-        # ContractContributionPlanDetails.objects.filter()
-        list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id', 'json_ext'))
+        ContractContributionPlanDetails.objects.filter()
+        list_cd = list(ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).values('id', 'json_ext'))
+        for cd in list_cd:
+            ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
         for cd in list_cd:
             json_ext = cd["json_ext"]
             contribution_uuid = json.loads(json_ext)["contribution_uuid"]
-            ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
             Premium.objects.filter(uuid=contribution_uuid).delete()
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).delete()
+        Contract.objects.filter(id__in=(contract_id, new_id)).delete()
         PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
         PolicyHolder.objects.filter(id=policy_holder.id).delete()
         ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
