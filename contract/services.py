@@ -5,7 +5,6 @@ from copy import copy
 
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import AnonymousUser
-from django.core.mail import send_mail, BadHeaderError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 
@@ -248,7 +247,6 @@ class Contract(object):
             dict_representation = model_to_dict(contract_approved[0][1])
             id_contract_approved = f"{contract_to_approve.id}"
             dict_representation["id"], dict_representation["uuid"] = id_contract_approved, id_contract_approved
-            # TODO - send email to the PH  - UC-8 send payment notification by email
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="approve", exception=exc)
@@ -291,6 +289,8 @@ class Contract(object):
             amended_contract = copy(contract_to_amend)
             amended_contract.id = None
             amended_contract.amendment += 1
+            amended_contract.state = ContractModel.STATE_DRAFT
+            amended_contract.payment_reference = None
             contract_to_amend.state = ContractModel.STATE_ADDENDUM
             from core import datetime
             contract_to_amend.date_valid_to = datetime.datetime.now()
@@ -304,13 +304,24 @@ class Contract(object):
             signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
             # copy also contract details and contract contribution plan details
             self.__copy_details(contract_id=contract_id, amended_contract=amended_contract)
+            # evaluate amended contract amount notified
+            contract_details_list = {}
+            contract_details_list["data"] = self.__gather_policy_holder_insuree(
+                list(ContractDetailsModel.objects.filter(contract_id=amended_contract.id).values())
+            )
+            contract_contribution_plan_details = self.evaluate_contract_valuation(
+                contract_details_result=contract_details_list,
+                save=False
+            )
+            amended_contract.amount_notified = contract_contribution_plan_details["total_amount"]
+            if "amount_notified" in amended_contract.get_dirty_fields():
+                signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
             amended_contract_dict = model_to_dict(amended_contract)
             id_new_amended = f"{amended_contract.id}"
             amended_contract_dict["id"], amended_contract_dict["uuid"] = (id_new_amended, id_new_amended)
             return _output_result_success(dict_representation=amended_contract_dict)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="amend", exception=exc)
-
 
     def __copy_details(self, contract_id, amended_contract):
         list_cd = ContractDetailsModel.objects.filter(contract_id=contract_id).all()
@@ -319,13 +330,8 @@ class Contract(object):
             cd_new = copy(cd)
             cd_new.id = None
             cd_new.contract = amended_contract
+            cd_new.json_ext = None
             cd_new.save(username=self.user.username)
-            ccpd_new = copy(ccpd)
-            ccpd_new.id = None
-            ccpd_new.contract_details = cd_new
-            ccpd_new.save(username=self.user.username)
-
-
 
     @check_authentication
     def delete(self, contract):

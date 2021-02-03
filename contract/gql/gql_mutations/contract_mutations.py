@@ -2,10 +2,12 @@ from core.gql.gql_mutations import DeleteInputType
 from core.gql.gql_mutations.base_mutation  import BaseMutation, BaseDeleteMutation
 from .mutations import ContractCreateMutationMixin, ContractUpdateMutationMixin, \
     ContractDeleteMutationMixin, ContractSubmitMutationMixin, \
-    ContractApproveMutationMixin, ContractCounterMutationMixin
+    ContractApproveMutationMixin, ContractCounterMutationMixin, ContractAmendMutationMixin
 from contract.models import Contract
 from contract.gql.gql_mutations.input_types import ContractCreateInputType, ContractUpdateInputType, \
-    ContractSubmitInputType, ContractApproveInputType, ContractCounterInputType
+    ContractSubmitInputType, ContractApproveInputType, ContractCounterInputType, \
+    ContractApproveBulkInputType, ContractAmendInputType
+from contract.tasks import approve_contracts
 
 
 class CreateContractMutation(ContractCreateMutationMixin, BaseMutation):
@@ -53,10 +55,42 @@ class ApproveContractMutation(ContractApproveMutationMixin, BaseMutation):
         pass
 
 
+class ApproveContractBulkMutation(ContractApproveMutationMixin, BaseMutation):
+    _mutation_class = "ApproveContractBulkMutation"
+    _mutation_module = "contract"
+    _model = Contract
+
+    @classmethod
+    def _mutate(cls, user, **data):
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        if "contract_uuids" in data:
+            cls.approve_contracts(user=user, contracts=data["contract_uuids"])
+        return None
+
+    @classmethod
+    def approve_contracts(cls, user, contracts):
+        approve_contracts.delay(user_id=f'{user.id}', contracts=contracts)
+
+    class Input(ContractApproveBulkInputType):
+        pass
+
+
 class CounterContractMutation(ContractCounterMutationMixin, BaseMutation):
     _mutation_class = "CounterContractMutation"
     _mutation_module = "contract"
     _model = Contract
 
     class Input(ContractCounterInputType):
+        pass
+
+
+class AmendContractMutation(ContractAmendMutationMixin, BaseMutation):
+    _mutation_class = "AmendContractMutation"
+    _mutation_module = "contract"
+    _model = Contract
+
+    class Input(ContractAmendInputType):
         pass

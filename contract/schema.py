@@ -11,7 +11,7 @@ from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
 
 from contract.gql.gql_mutations.contract_mutations import CreateContractMutation, \
     UpdateContractMutation, DeleteContractMutation, SubmitContractMutation, ApproveContractMutation, \
-    CounterContractMutation
+    ApproveContractBulkMutation, CounterContractMutation, AmendContractMutation
 from contract.gql.gql_mutations.contract_details_mutations import CreateContractDetailsMutation, \
     UpdateContractDetailsMutation, DeleteContractDetailsMutation
 
@@ -95,7 +95,9 @@ class Mutation(graphene.ObjectType):
     delete_contract = DeleteContractMutation.Field()
     submit_contract = SubmitContractMutation.Field()
     approve_contract = ApproveContractMutation.Field()
+    approve_bulk_contract = ApproveContractBulkMutation.Field()
     counter_contract = CounterContractMutation.Field()
+    amend_contract = AmendContractMutation.Field()
 
     create_contract_details = CreateContractDetailsMutation.Field()
     update_contract_details = UpdateContractDetailsMutation.Field()
@@ -109,7 +111,7 @@ def on_contract_mutation(sender, **kwargs):
         uuids = [uuid] if uuid else []
     if not uuids:
         return []
-    impacted_contracts = Contract.objects.filter(uuid__in=uuids).all()
+    impacted_contracts = Contract.objects.filter(id__in=uuids).all()
     for contract in impacted_contracts:
         ContractMutation.objects.create_or_update(contract=contract, mutation_id=kwargs['mutation_log_id'])
     return []
