@@ -216,7 +216,6 @@ class Contract(object):
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
                 "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd['insuree_id']).first().last_policy.id,
-                #"contribution_id": Premium.objects.filter(uuid=json.loads(cd['json_ext'])["contribution_uuid"]).first().id if cd["json_ext"] else None,
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id']
             }
@@ -560,9 +559,9 @@ class ContractContributionPlanDetails(object):
                         uuid_string = f"{ccpd_results[0].id}"
                         ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
                         ccpd_list.append(ccpd_record)
-                    # case 2 -
+                    # case 2 - 2 contributions with 2 policies
                     else:
-                        #there is additional contribution - we have to calculate/recalculate
+                        # there is additional contribution - we have to calculate/recalculate
                         # recalculate
                         total_amount = total_amount - calculated_amount
                         for ccpd_result in ccpd_results:
