@@ -328,29 +328,6 @@ class ContractQueryTest(TestCase):
         converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
         self.assertEqual(UUID(converted_id), id)
 
-    def test_find_contract_by_contract_code_date_valid_from(self):
-        code = self.test_contract.code
-        date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
-        id = self.test_contract.id
-        query = F'''
-        {{
-            contract(
-                code: "{code}", dateValidFrom: "{date_valid_from}"){{
-                totalCount
-                edges {{
-                  node {{
-                    id
-                  }}
-                  cursor
-                }}
-          }}
-        }}
-        '''
-        query_result = self.execute_query(query)
-        result = query_result['contract']['edges'][0]['node']
-        converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
-        self.assertEqual(UUID(converted_id), id)
-
     def test_find_contract_by_contract_code_date_valid_from_gte(self):
         code = self.test_contract.code
         date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
@@ -373,28 +350,6 @@ class ContractQueryTest(TestCase):
         result = query_result['contract']['edges'][0]['node']
         converted_id = base64.b64decode(result['id']).decode('utf-8').split(':')[1]
         self.assertEqual(UUID(converted_id), id)
-
-    def test_find_contract_by_contract_code_date_valid_from_gt(self):
-        code = self.test_contract.code
-        date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
-        id = self.test_contract.id
-        query = F'''
-        {{
-            contract(
-                code: "{code}", dateValidFrom_Gt: "{date_valid_from}"){{
-                totalCount
-                edges {{
-                  node {{
-                    id
-                  }}
-                  cursor
-                }}
-          }}
-        }}
-        '''
-        query_result = self.execute_query(query)
-        result = query_result['contract']['edges']
-        self.assertEqual(len(result), 0)
 
     def test_find_contract_by_contract_code_contains(self):
         date = self.date_created

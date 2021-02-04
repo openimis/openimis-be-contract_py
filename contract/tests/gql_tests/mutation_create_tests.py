@@ -105,74 +105,6 @@ class MutationTestCreate(TestCase):
             )
         )
 
-    def test_mutation_contract_create_update_with_policy_holder(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 3):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
-        time_stamp = datetime.datetime.now()
-        input_param = {
-            "code": "CT:"+str(time_stamp),
-            "policyHolderId": str(policy_holder.id)
-        }
-        self.add_mutation("createContract", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params=input_param,
-        )["edges"]
-        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-        expected_amount_notified = result[0]["node"]["amountNotified"] + 400.50
-
-        input_param = {
-            "id": str(converted_id),
-            "amountNotified": str(expected_amount_notified),
-        }
-        self.add_mutation("updateContract", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params={"id": str(converted_id)},
-        )["edges"]
-        updated_amount_notified = result[0]['node']['amountNotified']
-
-        self.add_mutation("deleteContract", {"uuids": [str(converted_id)]})
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params={"id": str(converted_id), "isDeleted": True},
-        )["edges"]
-        is_deleted = result[0]['node']['isDeleted']
-
-        # tear down the test data
-        ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
-        Contract.objects.filter(id=str(converted_id)).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
-
-        self.assertEqual(
-            (
-                expected_amount_notified,
-                True
-            )
-            ,
-            (
-                updated_amount_notified,
-                is_deleted
-            )
-        )
-
     def test_mutation_contract_create_details_and_update_delete(self):
         # create contract for contract with policy holder with two phinsuree
         policy_holder = create_test_policy_holder()
@@ -254,74 +186,6 @@ class MutationTestCreate(TestCase):
             (2, 3),
             (version_after_update, result[0]['node']['version'])
         )
-
-    def test_mutation_contract_create_submit_approve(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 4):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
-        time_stamp = datetime.datetime.now()
-        input_param = {
-            "code": "TVB",
-            "policyHolderId": str(policy_holder.id)
-        }
-        self.add_mutation("createContract", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params=input_param,
-        )["edges"]
-        converted_id_contract = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-
-        input_param = {
-            "id": str(converted_id_contract),
-        }
-        self.add_mutation("submitContract", input_param)
-        self.find_by_exact_attributes_query(
-            "contract",
-            params=input_param,
-        )["edges"]
-        self.add_mutation("approveContract", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params=input_param,
-        )["edges"]
-        result_state = result[0]['node']['state']
-        expected_state = 5
-        # tear down the test data
-        payment_uuid = result[0]['node']["paymentReference"].split('payment_imis_id:')[1]
-        # tear down the test data
-        PaymentDetail.objects.filter(payment__uuid=payment_uuid).delete()
-        Payment.objects.filter(uuid=payment_uuid).delete()
-        # ContractContributionPlanDetails.objects.filter()
-        list_cd = list(ContractDetails.objects.filter(contract_id=converted_id_contract).values('id', 'json_ext'))
-        for cd in list_cd:
-            json_ext = cd["json_ext"]
-            contribution_uuid = json.loads(json_ext)["contribution_uuid"]
-            ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
-            Premium.objects.filter(uuid=contribution_uuid).delete()
-        ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
-        Contract.objects.filter(id=str(converted_id_contract)).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
-
-        self.assertEqual(
-            expected_state, result_state
-        )
-
 
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
@@ -433,4 +297,3 @@ class MutationTestCreate(TestCase):
 
         params_as_args = [f'{k}:{wrap_arg(v)}' for k, v in params.items()]
         return ", ".join(params_as_args)
-

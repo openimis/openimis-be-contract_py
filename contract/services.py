@@ -69,6 +69,7 @@ class Contract(object):
                 result_ph_insuree = cd.update_from_ph_insuree(contract_details={
                     "policy_holder_id": contract["policy_holder_id"],
                     "contract_id": uuid_string,
+                    "amendment": 0,
                 })
                 total_amount = self.evaluate_contract_valuation(
                     contract_details_result=result_ph_insuree,
@@ -109,7 +110,7 @@ class Contract(object):
             # updatable scenario
             if self.__check_rights_by_status(updated_contract.state) == "updatable":
                 if "code" in contract:
-                    raise ContractUpdateError("That fields are not editable in that permission")
+                    raise ContractUpdateError("That fields are not editable in that permission!")
                 return _output_result_success(
                     dict_representation=self.__update_contract_fields(
                         contract_input=contract,
@@ -128,7 +129,7 @@ class Contract(object):
                     )
                 )
             if self.__check_rights_by_status(updated_contract) == "cannot_update":
-                raise ContractUpdateError("In that state you cannot update")
+                raise ContractUpdateError("In that state you cannot update!")
         except Exception as exc:
             return _output_exception(model_name="Contract", method="update", exception=exc)
 
@@ -148,7 +149,7 @@ class Contract(object):
         #check if PH is set and not changed
         if current_policy_holder_id:
             if "policy_holder" in updated_contract.get_dirty_fields(check_relationship=True):
-                raise ContractUpdateError("You cannot update already set PolicyHolder in Contract")
+                raise ContractUpdateError("You cannot update already set PolicyHolder in Contract!")
         updated_contract.save(username=self.user.username)
         # save the communication
         historical_record = updated_contract.history.all().first()
@@ -174,7 +175,10 @@ class Contract(object):
             contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
-                self.__validate_submission(contract_to_submit=contract_to_submit)
+                self.__validate_submission(contract_to_submit=contract_to_submit),
+                contract_to_submit.amendment,
+                contract_date_valid_from=None,
+                payment=contract_to_submit.payment_reference,
             )
             # contract valuation
             contract_contribution_plan_details = self.evaluate_contract_valuation(
@@ -193,27 +197,29 @@ class Contract(object):
     def __validate_submission(self, contract_to_submit):
         # check if we have a PolicyHoldes and any ContractDetails
         if not contract_to_submit.policy_holder:
-            raise ContractUpdateError("The contract does not contain PolicyHolder")
+            raise ContractUpdateError("The contract does not contain PolicyHolder!")
         contract_details = ContractDetailsModel.objects.filter(contract_id=contract_to_submit.id)
         if contract_details.count() == 0:
-            raise ContractUpdateError("The contract does not contain any insuree")
+            raise ContractUpdateError("The contract does not contain any insuree!")
         # variable to check if we have right for submit
         state_right = self.__check_rights_by_status(contract_to_submit.state)
         # check if we can submit
         if state_right == "cannot_update":
-            raise ContractUpdateError("The contract cannot be submitted because of current state")
+            raise ContractUpdateError("The contract cannot be submitted because of current state!")
         if state_right == "approvable":
-            raise ContractUpdateError("The contract has been already submitted")
+            raise ContractUpdateError("The contract has been already submitted!")
         return list(contract_details.values())
 
-    def __gather_policy_holder_insuree(self, contract_details, contract_date_valid_from=None):
+    def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None, payment=None):
         return [
             {
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
                 "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd['insuree_id']).first().last_policy.id,
                 "contract_date_valid_from": contract_date_valid_from,
-                "insuree_id": cd['insuree_id']
+                "insuree_id": cd['insuree_id'],
+                "amendment": amendment,
+                "payment": payment
             }
             for cd in contract_details
         ]
@@ -230,11 +236,13 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_approve.state)
             # check if we can submit
             if state_right is not "approvable":
-                raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable")
+                raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable!")
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
                 list(ContractDetailsModel.objects.filter(contract_id=contract_to_approve.id).values()),
-                contract_to_approve.date_valid_from
+                contract_to_approve.amendment,
+                contract_to_approve.date_valid_from,
+                contract_to_approve.payment_reference,
             )
             # send signal - approve contract
             ccpd_service = ContractContributionPlanDetails(user=self.user)
@@ -268,7 +276,7 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_counter.state)
             # check if we can submit
             if state_right is not "approvable":
-                raise ContractUpdateError("You cannot counter this contract! The status of contract is not Negotiable")
+                raise ContractUpdateError("You cannot counter this contract! The status of contract is not Negotiable!")
             contract_to_counter.state = ContractModel.STATE_COUNTER
             signal_contract.send(sender=ContractModel, contract=contract_to_counter, user=self.user)
             dict_representation = model_to_dict(contract_to_counter)
@@ -289,13 +297,12 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_amend.state)
             # check if we can amend
             if state_right is not "cannot_update" and contract_to_amend.state is not ContractModel.STATE_TERMINATED:
-                raise ContractUpdateError("You cannot amend this contract")
+                raise ContractUpdateError("You cannot amend this contract!")
             # create copy of the contract
             amended_contract = copy(contract_to_amend)
             amended_contract.id = None
             amended_contract.amendment += 1
             amended_contract.state = ContractModel.STATE_DRAFT
-            amended_contract.payment_reference = None
             contract_to_amend.state = ContractModel.STATE_ADDENDUM
             from core import datetime
             contract_to_amend.date_valid_to = datetime.datetime.now()
@@ -312,7 +319,8 @@ class Contract(object):
             # evaluate amended contract amount notified
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
-                list(ContractDetailsModel.objects.filter(contract_id=amended_contract.id).values())
+                list(ContractDetailsModel.objects.filter(contract_id=amended_contract.id).values()),
+                contract_to_amend.amendment,
             )
             contract_contribution_plan_details = self.evaluate_contract_valuation(
                 contract_details_result=contract_details_list,
@@ -331,7 +339,6 @@ class Contract(object):
     def __copy_details(self, contract_id, amended_contract):
         list_cd = ContractDetailsModel.objects.filter(contract_id=contract_id).all()
         for cd in list_cd:
-            ccpd = ContractContributionPlanDetailsModel.objects.get(contract_details__id=f"{cd.id}")
             cd_new = copy(cd)
             cd_new.id = None
             cd_new.contract = amended_contract
@@ -385,6 +392,7 @@ class ContractDetails(object):
                     dict_representation = model_to_dict(cd)
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
                     dict_representation["policy_id"] = phi.last_policy.id
+                    dict_representation["amendment"] = contract_details["amendment"]
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
             return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
@@ -524,10 +532,14 @@ class ContractContributionPlanDetails(object):
             dict_representation = {}
             ccpd_list = []
             total_amount = 0
+            amendment = 0
+            payment = None
             for contract_details in contract_contribution_plan_details["contract_details"]:
                 cpbd = ContributionPlanBundleDetails.objects.filter(
                     contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
                 )[0]
+                amendment = contract_details["amendment"]
+                payment = contract_details["payment"] if "payment" in contract_details else None
                 ccpd = ContractContributionPlanDetailsModel(
                     **{
                         "contract_details_id": contract_details["id"],
@@ -572,6 +584,11 @@ class ContractContributionPlanDetails(object):
                             ccpd_list.append(ccpd_record)
                 if "id" not in ccpd_record:
                     ccpd_list.append(ccpd_record)
+            if amendment > 0:
+                payment_uuid = payment.split('payment_imis_id:')[1]
+                payment_object = Payment.objects.get(uuid=payment_uuid)
+                received_amount = payment_object.received_amount if payment_object.received_amount else 0
+                total_amount = total_amount - received_amount
             dict_representation['total_amount'] = total_amount
             dict_representation['contribution_plan_details'] = ccpd_list
             return _output_result_success(dict_representation=dict_representation)
