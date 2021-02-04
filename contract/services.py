@@ -197,10 +197,10 @@ class Contract(object):
     def __validate_submission(self, contract_to_submit):
         # check if we have a PolicyHoldes and any ContractDetails
         if not contract_to_submit.policy_holder:
-            raise ContractUpdateError("The contract doesn't contains PolicyHolder")
+            raise ContractUpdateError("The contract does not contain PolicyHolder")
         contract_details = ContractDetailsModel.objects.filter(contract_id=contract_to_submit.id)
         if contract_details.count() == 0:
-            raise ContractUpdateError("The contract doesn't contains any insuree")
+            raise ContractUpdateError("The contract does not contain any insuree")
         # variable to check if we have right for submit
         state_right = self.__check_rights_by_status(contract_to_submit.state)
         # check if we can submit
@@ -403,6 +403,9 @@ class ContractContributionPlanDetails(object):
 
     @check_authentication
     def create_ccpd(self, ccpd, insuree_id):
+        """"
+            method to create contract contribution plan details
+        """
         # get the relevant policy from the related product of contribution plan
         # policy objects get all related to this product
         insuree = Insuree.objects.filter(id=insuree_id).first()
@@ -449,7 +452,7 @@ class ContractContributionPlanDetails(object):
 
         # look for partially policies - 1st case
         policies_partially_covered = policies.filter(
-            Q(start_date__gt=date_valid_from, expiry_date__gte=date_valid_to),
+            Q(start_date__gt=date_valid_from, expiry_date__gte=date_valid_to) | Q(start_date__gt=date_valid_from, expiry_date=None),
             ~Q(start_date__gt=date_valid_to)
         )
         if policies_partially_covered.count() > 0:
@@ -475,7 +478,7 @@ class ContractContributionPlanDetails(object):
 
         # look for partially policies - 2nd case
         policies_partially_covered = policies.filter(
-            Q(start_date__lte=date_valid_from, expiry_date__lt=date_valid_to),
+            Q(start_date__lte=date_valid_from, expiry_date__lt=date_valid_to) | Q(start_date__lte=date_valid_from, expiry_date=None),
             ~Q(expiry_date__lt=date_valid_from)
         )
         if policies_partially_covered.count() > 0:
@@ -499,7 +502,8 @@ class ContractContributionPlanDetails(object):
             policy_output.append(policy)
             return policy_output
 
-        #else if we have no results
+        # else if we have no results
+        # TODO Policy with status - new open=32 in policy-be_py module
         if len(policy_output) == 0:
             policy = Policy.objects.create(
                 **{
@@ -561,12 +565,10 @@ class ContractContributionPlanDetails(object):
                         #there is additional contribution - we have to calculate/recalculate
                         # recalculate
                         total_amount = total_amount - calculated_amount
-                        i = 0
                         for ccpd_result in ccpd_results:
                             # TODO here will be a function from calculation module
                             #  to count the value for amount. And now temporary value is here
                             #  until calculation module be developed
-                            i = i + 1
                             calculated_amount = 250
                             total_amount += calculated_amount
                             ccpd_record = model_to_dict(ccpd_result)
