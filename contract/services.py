@@ -181,10 +181,6 @@ class Contract(object):
                 contract_details_result=contract_details_list,
             )
             contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
-            # create contract contribution based on service
-            # TODO moved this create contribution to the approving contract
-            #ccpd = ContractContributionPlanDetails(user=self.user)
-            #ccpd.create_contribution(contract_contribution_plan_details)
             # send signal
             contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
             signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
