@@ -417,7 +417,6 @@ class ContractContributionPlanDetails(object):
             date_valid_from=ccpd.date_valid_from,
             date_valid_to=ccpd.date_valid_to,
             product_id=ccpd.contribution_plan.benefit_plan.id,
-            insurance_period=ccpd.contribution_plan.benefit_plan.insurance_period
         )
         return self.__create_contribution_from_policy(ccpd, policies)
 
@@ -439,92 +438,52 @@ class ContractContributionPlanDetails(object):
             ccpd.save(username=self.user.username)
             return [ccpd_new, ccpd]
 
-    def __get_policy(self, insuree, date_valid_from, date_valid_to, product_id, insurance_period):
-        from core import datetime, datetimedelta
+    def __get_policy(self, insuree, date_valid_from, date_valid_to, product_id):
+        from core import datetime
         policy_output = []
-        # get all policies related to the product
-        policies = Policy.objects.filter(product__id=product_id)
+        # get all policies related to the product and insuree
+        policies = Policy.objects.filter(product__id=product_id).filter(family__head_insuree=insuree)
         # get covered policy
-        policies_covered = policies.filter(
-            Q(start_date__lte=date_valid_from, expiry_date__gte=date_valid_to)
-        )
+        if len(list(policies)) > 0:
+            policies_covered = list(policies.filter(
+                Q(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
+            ).order_by('start_date'))
+        else:
+            policies_covered = []
 
-        if policies_covered.count() > 0:
-            policy_output.append(policies_covered.first())
-            return policy_output
+        last_date_covered = date_valid_from
+        while last_date_covered < date_valid_to and len(policies_covered) > 0:
+            cur_policy = policies_covered.pop()
+            #to check if it does take the first
+            if cur_policy.start_date < date_valid_from:
+                # Really unlikely we might create a policy that stop at curPolicy.startDate
+                # (start at curPolicy.startDate - product length) and add it to policy_output
+                last_date_covered = cur_policy.expiry_date
+                policy_output.append(cur_policy)
 
-        # look for partially policies - 1st case
-        policies_partially_covered = policies.filter(
-            Q(start_date__gt=date_valid_from, expiry_date__gte=date_valid_to) | Q(start_date__gt=date_valid_from, expiry_date=None),
-            ~Q(start_date__gt=date_valid_to)
-        )
-        if policies_partially_covered.count() > 0:
-            policy_retrieved = policies_partially_covered.first()
-            policy = Policy.objects.create(
+        # now we create new policy
+        while last_date_covered < date_valid_to:
+            # create policy for insuree familly
+            # TODO Policy with status - new open=32 in policy-be_py module
+            cur_policy = Policy.objects.create(
                 **{
                     "family": insuree.family,
                     "product_id": product_id,
                     "status": Policy.STATUS_ACTIVE,
                     "stage": Policy.STAGE_NEW,
-                    "enroll_date": date_valid_from,
-                    "start_date": date_valid_from,
-                    "validity_from": date_valid_from,
-                    "effective_date": date_valid_from,
-                    "expiry_date": policy_retrieved.start_date,
-                    "validity_to": None,
-                    "audit_user_id": -1,
-                }
-            )
-            policy_output.append(policy)
-            policy_output.append(policy_retrieved)
-            return policy_output
-
-        # look for partially policies - 2nd case
-        policies_partially_covered = policies.filter(
-            Q(start_date__lte=date_valid_from, expiry_date__lt=date_valid_to) | Q(start_date__lte=date_valid_from, expiry_date=None),
-            ~Q(expiry_date__lt=date_valid_from)
-        )
-        if policies_partially_covered.count() > 0:
-            policy_retrieved = policies_partially_covered.first()
-            policy_output.append(policy_retrieved)
-            policy = Policy.objects.create(
-                **{
-                    "family": insuree.family,
-                    "product_id": product_id,
-                    "status": Policy.STATUS_ACTIVE,
-                    "stage": Policy.STAGE_NEW,
-                    "enroll_date": policy_retrieved.expiry_date,
-                    "start_date": policy_retrieved.expiry_date,
-                    "validity_from": policy_retrieved.expiry_date,
-                    "effective_date": policy_retrieved.expiry_date,
+                    "enroll_date": last_date_covered,
+                    "start_date": last_date_covered,
+                    "validity_from": last_date_covered,
+                    "effective_date": last_date_covered,
                     "expiry_date": date_valid_to,
                     "validity_to": None,
                     "audit_user_id": -1,
                 }
             )
-            policy_output.append(policy)
-            return policy_output
+            last_date_covered = cur_policy.expiry_date
+            policy_output.append(cur_policy)
 
-        # else if we have no results
-        # TODO Policy with status - new open=32 in policy-be_py module
-        if len(policy_output) == 0:
-            policy = Policy.objects.create(
-                **{
-                    "family": insuree.family,
-                    "product_id": product_id,
-                    "status": Policy.STATUS_ACTIVE,
-                    "stage": Policy.STAGE_NEW,
-                    "enroll_date": date_valid_from,
-                    "start_date": date_valid_from,
-                    "validity_from": date_valid_from,
-                    "effective_date": date_valid_from,
-                    "expiry_date": date_valid_from + datetimedelta(months=insurance_period),
-                    "validity_to": None,
-                    "audit_user_id": -1,
-                }
-            )
-            policy_output.append(policy)
-            return policy_output
+        return policy_output
 
     @check_authentication
     def contract_valuation(self, contract_contribution_plan_details):
@@ -555,33 +514,16 @@ class ContractContributionPlanDetails(object):
                 ccpd_record = model_to_dict(ccpd)
                 ccpd_record["calculated_amount"] = calculated_amount
                 if contract_contribution_plan_details["save"]:
-                    from core import datetime, datetimedelta
-                    length = get_contribution_length(cpbd.contribution_plan)
-                    ccpd.date_valid_from = contract_details["contract_date_valid_from"]
-                    ccpd.date_valid_to = contract_details["contract_date_valid_from"] + datetimedelta(months=length)
-                    ccpd_results = self.create_ccpd(ccpd, contract_details["insuree_id"])
-                    ccpd_record = model_to_dict(ccpd)
-                    ccpd_record["calculated_amount"] = calculated_amount
-                    # case 1 - single contribution
-                    if len(ccpd_results) == 1:
-                        uuid_string = f"{ccpd_results[0].id}"
-                        ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
-                        ccpd_list.append(ccpd_record)
-                    # case 2 - 2 contributions with 2 policies
-                    else:
-                        # there is additional contribution - we have to calculate/recalculate
-                        # recalculate
-                        total_amount = total_amount - calculated_amount
-                        for ccpd_result in ccpd_results:
-                            # TODO here will be a function from calculation module
-                            #  to count the value for amount. And now temporary value is here
-                            #  until calculation module be developed
-                            calculated_amount = 250
-                            total_amount += calculated_amount
-                            ccpd_record = model_to_dict(ccpd_result)
-                            ccpd_record["calculated_amount"] = calculated_amount
-                            ccpd_record['id'], ccpd_record['uuid'] = (ccpd_result.id, ccpd_result.id)
-                            ccpd_list.append(ccpd_record)
+                    ccpd_list, total_amount, ccpd_record = self.__append_contract_cpd_to_list(
+                        ccpd=ccpd,
+                        cp=cpbd.contribution_plan,
+                        date_valid_from=contract_details["contract_date_valid_from"],
+                        insuree_id= contract_details["insuree_id"],
+                        total_amount=total_amount,
+                        calculated_amount=calculated_amount,
+                        ccpd_list=ccpd_list,
+                        ccpd_record=ccpd_record
+                    )
                 if "id" not in ccpd_record:
                     ccpd_list.append(ccpd_record)
             if amendment > 0:
@@ -598,6 +540,45 @@ class ContractContributionPlanDetails(object):
                 method="contractValuation",
                 exception=exc
             )
+
+    def __append_contract_cpd_to_list(self, ccpd, cp, date_valid_from, insuree_id, total_amount,
+                                      calculated_amount, ccpd_list, ccpd_record):
+        """helper private function to gather results to the list
+           ccpd - contract contribution plan details
+           cp - contribution plan
+           return ccpd list and total amount
+        """
+        from core import datetime, datetimedelta
+        length = get_contribution_length(cp)
+        ccpd.date_valid_from = date_valid_from
+        ccpd.date_valid_to = date_valid_from + datetimedelta(months=length)
+        # TODO: calculate the number of CCPD to create in order to cover the contract lenght
+        ccpd_results = self.create_ccpd(ccpd, insuree_id)
+        ccpd_record = model_to_dict(ccpd)
+        ccpd_record["calculated_amount"] = calculated_amount
+        # TODO: support more that 2 CCPD
+        # case 1 - single contribution
+        if len(ccpd_results) == 1:
+            uuid_string = f"{ccpd_results[0].id}"
+            ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
+            ccpd_list.append(ccpd_record)
+        # case 2 - 2 contributions with 2 policies
+        else:
+            # there is additional contribution - we have to calculate/recalculate
+            # recalculate
+            total_amount = total_amount - calculated_amount
+            for ccpd_result in ccpd_results:
+                # TODO here will be a function from calculation module
+                #  to count the value for amount. And now temporary value is here
+                #  until calculation module be developed
+                calculated_amount = 250
+                total_amount += calculated_amount
+                ccpd_record = model_to_dict(ccpd_result)
+                ccpd_record["calculated_amount"] = calculated_amount
+                uuid_string = f"{ccpd_result.id}"
+                ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
+                ccpd_list.append(ccpd_record)
+        return ccpd_list, total_amount, ccpd_record
 
     @check_authentication
     def create_contribution(self, contract_contribution_plan_details):
