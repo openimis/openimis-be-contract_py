@@ -642,7 +642,8 @@ class PaymentService(object):
                         validity_from=now,
                         product_code=payment_detail["product_code"],
                         insurance_number=payment_detail["insurance_number"],
-                        expected_amount=payment_detail["expected_amount"]
+                        expected_amount=payment_detail["expected_amount"],
+                        premium=payment_detail["premium"]
                     )
                     pd_record = model_to_dict(pd)
                     pd_record['id'] = pd.id
@@ -662,11 +663,13 @@ class PaymentService(object):
         for ccpd in contract_contribution_plan_details:
             product_code = ContributionPlan.objects.get(id=ccpd["contribution_plan"]).benefit_plan.code
             insurance_number = ContractDetailsModel.objects.get(id=ccpd["contract_details"]).insuree.chf_id
+            contribution = ContractContributionPlanDetailsModel.objects.get(id=ccpd["id"]).contribution
             expected_amount = ccpd["calculated_amount"]
             payment_details_data.append({
                 "product_code": product_code,
                 "insurance_number": insurance_number,
-                "expected_amount": expected_amount
+                "expected_amount": expected_amount,
+                "premium": contribution
             })
         return payment_details_data
 
