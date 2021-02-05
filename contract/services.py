@@ -16,7 +16,6 @@ from contract.models import Contract as ContractModel, \
 from policyholder.models import PolicyHolderInsuree
 from contribution.models import Premium, Payer
 from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
-from contribution_plan.services import get_contribution_length
 
 from policy.models import Policy
 from payment.models import Payment, PaymentDetail
@@ -549,7 +548,10 @@ class ContractContributionPlanDetails(object):
            return ccpd list and total amount
         """
         from core import datetime, datetimedelta
-        length = get_contribution_length(cp)
+        # TODO - catch grace period from calculation rule if is defined
+        #  grace_period = cp.calculation_rule etc
+        #  length = cp.get_contribution_length(grace_period)
+        length = cp.get_contribution_length()
         ccpd.date_valid_from = date_valid_from
         ccpd.date_valid_to = date_valid_from + datetimedelta(months=length)
         # TODO: calculate the number of CCPD to create in order to cover the contract lenght
