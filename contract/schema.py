@@ -113,7 +113,7 @@ def on_contract_mutation(sender, **kwargs):
         return []
     impacted_contracts = Contract.objects.filter(id__in=uuids).all()
     for contract in impacted_contracts:
-        ContractMutation.objects.create_or_update(contract=contract, mutation_id=kwargs['mutation_log_id'])
+        ContractMutation.objects.update_or_create(contract=contract, mutation_id=kwargs['mutation_log_id'])
     return []
 
 
