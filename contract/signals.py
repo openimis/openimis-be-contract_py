@@ -42,6 +42,9 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_to_approve.amount_due = contract_contribution_plan_details["total_amount"]
     result = ccpd_service.create_contribution(contract_contribution_plan_details)
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
+    print("***********")
+    print(result_payment)
+    print("***********")
     # STATE_EXECUTABLE
     from core import datetime
     now = datetime.datetime.now()
@@ -67,41 +70,54 @@ signal_contract_approve.connect(on_contract_approve_signal, dispatch_uid="on_con
 def activate_contracted_policies(sender, instance, **kwargs):
     received_amount = instance.received_amount if instance.received_amount else 0
     # check if payment is related to the contract
-    uuid_payment = instance.uuid
-    if isinstance(uuid_payment, str):
-        uuid_payment = str(uuid.UUID(uuid_payment))
-    payment_detail = list(PaymentDetail.objects.filter(payment__id=int(instance.id)))
-    contract = None
-    if len(payment_detail) > 0:
-        # for  fetching contract getting the first payment
-        # detail from list would be enough to fetch it
-        contract = ContractContributionPlanDetails.objects.filter(contribution_id=payment_detail[0].premium.id).first().contract_details.contract
-    if contract:
-        contribution_list_id = [pd.premium.id for pd in payment_detail]
-        if instance.expected_amount <= received_amount and contract.state == Contract.STATE_EXECUTABLE:
-            # get all contract contribution plan detail
-            # get based on contribution
-            # ccpd - contract contribution plan details
-            ccpd_list = list(ContractContributionPlanDetails.objects.filter(contribution__id__in=contribution_list_id))
-            contract_details = ContractDetails.objects.filter(contract__id=f'{contract.id}')
-            from core import datetime, datetimedelta
-            for ccpd in ccpd_list:
-                insuree = ccpd.contract_details.insuree
-                ip = InsureePolicy.objects.create(
-                    **{
-                        "insuree": insuree,
-                        "policy": ccpd.policy,
-                        "enrollment_date": ccpd.date_valid_from,
-                        "start_date": ccpd.date_valid_from,
-                        "effective_date": ccpd.date_valid_from,
-                        "expiry_date": ccpd.date_valid_to + datetimedelta(
-                            ccpd.contribution_plan.benefit_plan.grace_period
-                        ),
-                        "audit_user_id": -1,
-                    }
-                )
-            contract.state = Contract.STATE_EFFECTIVE
-            __save_or_update_contract(contract, contract.user_updated)
+    payment_detail = PaymentDetail.objects.filter(
+        payment__id=int(instance.id)
+    ).prefetch_related(
+        'premium__contract_contribution_plan_details__contract_details__contract'
+    ).prefetch_related(
+        'premium__contract_contribution_plan_details'
+    ).filter(premium__contract_contribution_plan_details__isnull=False)
+    if len(list(payment_detail)) > 0:
+        if instance.expected_amount <= received_amount:
+            contribution_list_id = [pd.premium.id for pd in payment_detail]
+            contract_list = Contract.objects.filter(
+                contractdetails__contractcontributionplandetails__contribution__id__in=contribution_list_id
+            ).distinct()
+            ccpd_number = ContractContributionPlanDetails.objects.prefetch_related('contract_details__contract').filter(
+                contract_details__contract__in=list(contract_list)
+            ).count()
+            # 1- check if the contract have payment attached to each contributions
+            # (nbr CCPD of all contract in step 0= Paymentdetails in Steps 0)
+            if ccpd_number == len(list(payment_detail)):
+                for contract in contract_list:
+                    if contract.state == Contract.STATE_EXECUTABLE:
+                        # get the ccpd related to the currenttly processing contract
+                        ccpd_list = list(
+                            ContractContributionPlanDetails.objects.prefetch_related(
+                                'contract_details__contract').filter(
+                                contract_details__contract=contract
+                            )
+                        )
+                        from core import datetime, datetimedelta
+                        # TODO support Splitted payment and check that
+                        #  the payment match the value of all contributions
+                        for ccpd in ccpd_list:
+                            insuree = ccpd.contract_details.insuree
+                            pi = InsureePolicy.objects.create(
+                                **{
+                                    "insuree": insuree,
+                                    "policy": ccpd.policy,
+                                    "enrollment_date": ccpd.date_valid_from,
+                                    "start_date": ccpd.date_valid_from,
+                                    "effective_date": ccpd.date_valid_from,
+                                    "expiry_date": ccpd.date_valid_to + datetimedelta(
+                                        ccpd.contribution_plan.benefit_plan.grace_period
+                                    ),
+                                    "audit_user_id": -1,
+                                }
+                            )
+                        contract.state = Contract.STATE_EFFECTIVE
+                        __save_or_update_contract(contract, contract.user_updated)
 
 
 def __save_json_external(user_id, datetime, message):
