@@ -42,9 +42,6 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_to_approve.amount_due = contract_contribution_plan_details["total_amount"]
     result = ccpd_service.create_contribution(contract_contribution_plan_details)
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
-    print("***********")
-    print(result_payment)
-    print("***********")
     # STATE_EXECUTABLE
     from core import datetime
     now = datetime.datetime.now()
