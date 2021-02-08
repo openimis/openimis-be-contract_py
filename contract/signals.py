@@ -8,7 +8,7 @@ from django.conf import settings
 from django.core.mail import send_mail, BadHeaderError
 
 _contract_signal_params = ["contract", "user"]
-_contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service"]
+_contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service", "ccpd_service"]
 signal_contract = Signal(providing_args=_contract_signal_params)
 signal_contract_approve = Signal(providing_args=_contract_signal_params)
 
@@ -27,12 +27,14 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_details_list = kwargs["contract_details_list"]
     contract_service = kwargs["service_object"]
     payment_service = kwargs["payment_service"]
+    ccpd_service = kwargs["ccpd_service"]
     # contract valuation
     contract_contribution_plan_details = contract_service.evaluate_contract_valuation(
         contract_details_result=contract_details_list,
         save=True
     )
     contract_to_approve.amount_due = contract_contribution_plan_details["total_amount"]
+    result = ccpd_service.create_contribution(contract_contribution_plan_details)
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
     # STATE_EXECUTABLE
     from core import datetime
@@ -85,7 +87,7 @@ def __create_payment(contract, payment_service, contract_cpd):
     now = datetime.datetime.now()
     # format payment data
     payment_data = {
-        "expected_amount": contract.amount_rectified,
+        "expected_amount": contract.amount_due,
         "request_date": now,
     }
     payment_details_data = payment_service.collect_payment_details(contract_cpd["contribution_plan_details"])
