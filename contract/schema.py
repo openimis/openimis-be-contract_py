@@ -13,9 +13,10 @@ from contract.gql.gql_mutations.contract_mutations import CreateContractMutation
     UpdateContractMutation, DeleteContractMutation, SubmitContractMutation, ApproveContractMutation, \
     ApproveContractBulkMutation, CounterContractMutation, AmendContractMutation
 from contract.gql.gql_mutations.contract_details_mutations import CreateContractDetailsMutation, \
-    UpdateContractDetailsMutation, DeleteContractDetailsMutation
-
+    UpdateContractDetailsMutation, DeleteContractDetailsMutation, \
+    CreateContractDetailByPolicyHolderInsureeMutation
 from contract.apps import ContractConfig
+
 
 class Query(graphene.ObjectType):
 
@@ -102,6 +103,7 @@ class Mutation(graphene.ObjectType):
     create_contract_details = CreateContractDetailsMutation.Field()
     update_contract_details = UpdateContractDetailsMutation.Field()
     delete_contract_details = DeleteContractDetailsMutation.Field()
+    create_contract_details_by_ph_insuree = CreateContractDetailByPolicyHolderInsureeMutation.Field()
 
 
 def on_contract_mutation(sender, **kwargs):

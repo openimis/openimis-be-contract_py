@@ -149,7 +149,7 @@ class Contract(object):
         # get the current policy_holder value
         current_policy_holder_id = updated_contract.policy_holder_id
         [setattr(updated_contract, key, contract_input[key]) for key in contract_input]
-        #check if PH is set and not changed
+        # check if PH is set and not changed
         if current_policy_holder_id:
             if "policy_holder" in updated_contract.get_dirty_fields(check_relationship=True):
                 raise ContractUpdateError("You cannot update already set PolicyHolder in Contract!")
@@ -316,7 +316,8 @@ class Contract(object):
             contract.pop("id")
             [setattr(amended_contract, key, contract[key]) for key in contract]
             # check if chosen fields are not edited
-            if any(dirty_field in ["policy_holder", "code", "date_valid_from"] for dirty_field in amended_contract.get_dirty_fields(check_relationship=True)):
+            if any(dirty_field in ["policy_holder", "code", "date_valid_from"] for dirty_field in
+                   amended_contract.get_dirty_fields(check_relationship=True)):
                 raise ContractUpdateError("You cannot update this field during amend contract!")
             signal_contract.send(sender=ContractModel, contract=contract_to_amend, user=self.user)
             signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
@@ -404,6 +405,43 @@ class ContractDetails(object):
             return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
         return _output_result_success(dict_representation=contract_insuree_list)
 
+    @check_authentication
+    def ph_insuree_to_contract_details(self, contract, ph_insuree):
+        try:
+            phi = PolicyHolderInsuree.objects.get(id=f'{ph_insuree["id"]}')
+            # check for update contract right perms/authorites
+            if not self.user.has_perms(ContractConfig.gql_mutation_update_contract_perms):
+                raise PermissionError("Unauthorized")
+            if phi.is_deleted is False and phi.contribution_plan_bundle:
+                contract_service = Contract(user=self.user)
+                updated_contract = ContractModel.objects.get(id=f'{contract["id"]}')
+                if updated_contract.state not in [ContractModel.STATE_DRAFT,
+                                                  ContractModel.STATE_REQUEST_FOR_INFORMATION,
+                                                  ContractModel.STATE_COUNTER]:
+                    raise ContractUpdateError(
+                        "You cannot update contract by adding insuree - contract not in updatable state!"
+                    )
+                if updated_contract.policy_holder is None:
+                    raise ContractUpdateError(
+                        "There is no policy holder in contract!"
+                    )
+                cd = ContractDetailsModel(
+                    **{
+                        "contract_id": contract["id"],
+                        "insuree_id": phi.insuree.id,
+                        "contribution_plan_bundle_id": f"{phi.contribution_plan_bundle.id}",
+                    }
+                )
+                cd.save(self.user)
+                uuid_string = f"{cd.id}"
+                dict_representation = model_to_dict(cd)
+                dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
+                return _output_result_success(dict_representation=dict_representation)
+            else:
+                raise ContractUpdateError("You cannot insuree - is deleted or not enough data to create contract!")
+        except Exception as exc:
+            return _output_exception(model_name="ContractDetails", method="PHInsureToCDetatils", exception=exc)
+
 
 class ContractContributionPlanDetails(object):
 
@@ -460,7 +498,7 @@ class ContractContributionPlanDetails(object):
         last_date_covered = date_valid_from
         while last_date_covered < date_valid_to and len(policies_covered) > 0:
             cur_policy = policies_covered.pop()
-            #to check if it does take the first
+            # to check if it does take the first
             if cur_policy.start_date < date_valid_from:
                 # Really unlikely we might create a policy that stop at curPolicy.startDate
                 # (start at curPolicy.startDate - product length) and add it to policy_output
@@ -535,7 +573,7 @@ class ContractContributionPlanDetails(object):
                 contract_detail_id = contract_contribution_plan_details["contract_details"][0]["id"]
                 cd = ContractDetailsModel.objects.get(id=contract_detail_id)
                 contract_previous = ContractModel.objects.filter(
-                    Q(amendment=amendment-1, code=cd.contract.code)
+                    Q(amendment=amendment - 1, code=cd.contract.code)
                 ).first()
                 premium = ContractContributionPlanDetailsModel.objects.filter(
                     contract_details__contract__id=f'{contract_previous.id}'
@@ -609,15 +647,15 @@ class ContractContributionPlanDetails(object):
                 # create the contributions based on the ContractContributionPlanDetails
                 if ccpd["contribution"] is None:
                     contribution = Premium.objects.create(
-                      **{
-                           "policy_id": ccpd["policy"],
-                           "amount": ccpd["calculated_amount"],
-                           "audit_user_id": -1,
-                           "pay_date": now,
-                           # TODO Temporary value pay_type - I have to get to know about this field what should be here
-                           #  also ask about audit_user_id and pay_date value
-                           "pay_type": " ",
-                      }
+                        **{
+                            "policy_id": ccpd["policy"],
+                            "amount": ccpd["calculated_amount"],
+                            "audit_user_id": -1,
+                            "pay_date": now,
+                            # TODO Temporary value pay_type - I have to get to know about this field what should be here
+                            #  also ask about audit_user_id and pay_date value
+                            "pay_type": " ",
+                        }
                     )
                     ccpd_object = ContractContributionPlanDetailsModel.objects.get(id=ccpd["id"])
                     ccpd_object.contribution = contribution
