@@ -1,10 +1,14 @@
 import json
+import uuid
 
 from copy import copy
+from .config import get_message_counter_contract
 
 from django.db.models.query import QuerySet, Q
+from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.mail import send_mail, BadHeaderError
 from django.forms.models import model_to_dict
 
 from contract.apps import ContractConfig
@@ -177,7 +181,6 @@ class Contract(object):
                 self.__validate_submission(contract_to_submit=contract_to_submit),
                 contract_to_submit.amendment,
                 contract_date_valid_from=None,
-                payment=contract_to_submit.payment_reference,
             )
             # contract valuation
             contract_contribution_plan_details = self.evaluate_contract_valuation(
@@ -209,7 +212,7 @@ class Contract(object):
             raise ContractUpdateError("The contract has been already submitted!")
         return list(contract_details.values())
 
-    def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None, payment=None):
+    def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None):
         return [
             {
                 "id": f"{cd['id']}",
@@ -218,7 +221,6 @@ class Contract(object):
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id'],
                 "amendment": amendment,
-                "payment": payment
             }
             for cd in contract_details
         ]
@@ -241,7 +243,6 @@ class Contract(object):
                 list(ContractDetailsModel.objects.filter(contract_id=contract_to_approve.id).values()),
                 contract_to_approve.amendment,
                 contract_to_approve.date_valid_from,
-                contract_to_approve.payment_reference,
             )
             # send signal - approve contract
             ccpd_service = ContractContributionPlanDetails(user=self.user)
@@ -280,6 +281,12 @@ class Contract(object):
             signal_contract.send(sender=ContractModel, contract=contract_to_counter, user=self.user)
             dict_representation = model_to_dict(contract_to_counter)
             dict_representation["id"], dict_representation["uuid"] = (contract_id, contract_id)
+            email = _send_email_notify_counter(
+                code=contract_to_counter.code,
+                name=contract_to_counter.policy_holder.trade_name,
+                contact_name=contract_to_counter.policy_holder.contact_name,
+                email=contract_to_counter.policy_holder.email,
+            )
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="counter", exception=exc)
@@ -491,13 +498,11 @@ class ContractContributionPlanDetails(object):
             ccpd_list = []
             total_amount = 0
             amendment = 0
-            payment = None
             for contract_details in contract_contribution_plan_details["contract_details"]:
                 cpbd = ContributionPlanBundleDetails.objects.filter(
                     contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
                 )[0]
                 amendment = contract_details["amendment"]
-                payment = contract_details["payment"] if "payment" in contract_details else None
                 ccpd = ContractContributionPlanDetailsModel(
                     **{
                         "contract_details_id": contract_details["id"],
@@ -517,7 +522,7 @@ class ContractContributionPlanDetails(object):
                         ccpd=ccpd,
                         cp=cpbd.contribution_plan,
                         date_valid_from=contract_details["contract_date_valid_from"],
-                        insuree_id= contract_details["insuree_id"],
+                        insuree_id=contract_details["insuree_id"],
                         total_amount=total_amount,
                         calculated_amount=calculated_amount,
                         ccpd_list=ccpd_list,
@@ -526,8 +531,18 @@ class ContractContributionPlanDetails(object):
                 if "id" not in ccpd_record:
                     ccpd_list.append(ccpd_record)
             if amendment > 0:
-                payment_uuid = payment.split('payment_imis_id:')[1]
-                payment_object = Payment.objects.get(uuid=payment_uuid)
+                # get the payment from the previous version of the contract
+                contract_detail_id = contract_contribution_plan_details["contract_details"][0]["id"]
+                cd = ContractDetailsModel.objects.get(id=contract_detail_id)
+                contract_previous = ContractModel.objects.filter(
+                    Q(amendment=amendment-1, code=cd.contract.code)
+                ).first()
+                premium = ContractContributionPlanDetailsModel.objects.filter(
+                    contract_details__contract__id=f'{contract_previous.id}'
+                ).first().contribution
+                payment_detail_contribution = PaymentDetail.objects.filter(premium=premium).first()
+                payment_id = payment_detail_contribution.payment.id
+                payment_object = Payment.objects.get(id=payment_id)
                 received_amount = payment_object.received_amount if payment_object.received_amount else 0
                 total_amount = total_amount - received_amount
             dict_representation['total_amount'] = total_amount
@@ -713,3 +728,22 @@ def _save_json_external(user_id, datetime, message):
             "msg": message
         }]
     }
+
+
+def _send_email_notify_counter(code, name, contact_name, email):
+    try:
+        email_to_send = send_mail(
+            subject='Contract payment notification',
+            message=get_message_counter_contract(
+                language=settings.LANGUAGE_CODE.split('-')[0],
+                code=code,
+                name=name,
+                contact_name=contact_name,
+            ),
+            from_email=settings.EMAIL_HOST_USER,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        return email_to_send
+    except BadHeaderError:
+        return ValueError('Invalid header found.')

@@ -1,11 +1,17 @@
 import json
+import uuid
 
 from .config import get_message_approved_contract
-from .models import Contract
+from .models import Contract, ContractDetails, ContractContributionPlanDetails
 from core.signals import Signal
+from django.db.models.signals import post_save
 from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from django.core.mail import send_mail, BadHeaderError
+from django.dispatch import receiver
+from payment.models import Payment, PaymentDetail
+from insuree.models import InsureePolicy
+
 
 _contract_signal_params = ["contract", "user"]
 _contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service", "ccpd_service"]
@@ -41,7 +47,6 @@ def on_contract_approve_signal(sender, **kwargs):
     now = datetime.datetime.now()
     contract_to_approve.date_approved = now
     contract_to_approve.state = 5
-    contract_to_approve.payment_reference = f"payment_imis_id:{result_payment['data']['uuid']}"
     approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)
     email = __send_email_notify_payment(
         code=contract_to_approve.code,
@@ -56,6 +61,47 @@ def on_contract_approve_signal(sender, **kwargs):
 
 signal_contract.connect(on_contract_signal, dispatch_uid="on_contract_signal")
 signal_contract_approve.connect(on_contract_approve_signal, dispatch_uid="on_contract_approve_signal")
+
+
+@receiver(post_save, sender=Payment, dispatch_uid="payment_signal_paid")
+def activate_contracted_policies(sender, instance, **kwargs):
+    received_amount = instance.received_amount if instance.received_amount else 0
+    # check if payment is related to the contract
+    uuid_payment = instance.uuid
+    if isinstance(uuid_payment, str):
+        uuid_payment = str(uuid.UUID(uuid_payment))
+    payment_detail = list(PaymentDetail.objects.filter(payment__id=int(instance.id)))
+    contract = None
+    if len(payment_detail) > 0:
+        # for  fetching contract getting the first payment
+        # detail from list would be enough to fetch it
+        contract = ContractContributionPlanDetails.objects.filter(contribution_id=payment_detail[0].premium.id).first().contract_details.contract
+    if contract:
+        contribution_list_id = [pd.premium.id for pd in payment_detail]
+        if instance.expected_amount <= received_amount and contract.state == Contract.STATE_EXECUTABLE:
+            # get all contract contribution plan detail
+            # get based on contribution
+            # ccpd - contract contribution plan details
+            ccpd_list = list(ContractContributionPlanDetails.objects.filter(contribution__id__in=contribution_list_id))
+            contract_details = ContractDetails.objects.filter(contract__id=f'{contract.id}')
+            from core import datetime, datetimedelta
+            for ccpd in ccpd_list:
+                insuree = ccpd.contract_details.insuree
+                ip = InsureePolicy.objects.create(
+                    **{
+                        "insuree": insuree,
+                        "policy": ccpd.policy,
+                        "enrollment_date": ccpd.date_valid_from,
+                        "start_date": ccpd.date_valid_from,
+                        "effective_date": ccpd.date_valid_from,
+                        "expiry_date": ccpd.date_valid_to + datetimedelta(
+                            ccpd.contribution_plan.benefit_plan.grace_period
+                        ),
+                        "audit_user_id": -1,
+                    }
+                )
+            contract.state = Contract.STATE_EFFECTIVE
+            __save_or_update_contract(contract, contract.user_updated)
 
 
 def __save_json_external(user_id, datetime, message):
