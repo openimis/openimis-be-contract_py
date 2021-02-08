@@ -733,7 +733,7 @@ def _save_json_external(user_id, datetime, message):
 def _send_email_notify_counter(code, name, contact_name, email):
     try:
         email_to_send = send_mail(
-            subject='Contract payment notification',
+            subject='Contract counter notification',
             message=get_message_counter_contract(
                 language=settings.LANGUAGE_CODE.split('-')[0],
                 code=code,
