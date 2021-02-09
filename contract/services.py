@@ -353,6 +353,60 @@ class Contract(object):
             cd_new.save(username=self.user.username)
 
     @check_authentication
+    def renew(self, contract):
+        try:
+            # check rights for delete contract
+            if not self.user.has_perms(ContractConfig.gql_mutation_renew_contract_perms):
+                raise PermissionError("Unauthorized")
+            from core import datetime
+            contract_to_renew = ContractModel.objects.filter(id=contract["id"]).first()
+            contract_id = contract["id"]
+            # check if we have date valid to
+            if contract_to_renew.date_valid_to is None:
+                raise ContractUpdateError("Date valid to not specified - hard to "
+                                          "determine when contract is about to end so as to renew it!"
+                                          )
+            # check if date valid from of new entity is bigger than valid to of contract to renew
+            if contract["date_valid_from"] <= contract_to_renew.date_valid_to:
+                raise ContractUpdateError("Renewed contract should be after the terminating contract!")
+            # block deleting contract not in Updateable or Approvable state
+            state_right = self.__check_rights_by_status(contract_to_renew.state)
+            # check if we can amend
+            if state_right is not "cannot_update" and contract_to_renew.state is not ContractModel.STATE_TERMINATED:
+                raise ContractUpdateError("You cannot renew this contract!")
+            # create copy of the contract
+            renewed_contract = copy(contract_to_renew)
+            renewed_contract.id = None
+            contract.pop("id")
+            [setattr(renewed_contract, key, contract[key]) for key in contract]
+            # check if chosen fields are not edited
+            fields = ["policy_holder", "code", "amount_notified"]
+            if any(dirty_field in fields for dirty_field in
+                   renewed_contract.get_dirty_fields(check_relationship=True)):
+                raise ContractUpdateError("You cannot update this field during renewed contract!")
+            renewed_contract.state = ContractModel.STATE_DRAFT
+            renewed_contract.amount_rectified = 0
+            renewed_contract.amount_due = 0
+            renewed_contract.save(username=self.user.username)
+            historical_record = renewed_contract.history.all().first()
+            renewed_contract.json_ext = json.dumps(_save_json_external(
+                user_id=historical_record.user_updated.id,
+                datetime=historical_record.date_updated,
+                message=f"contract renewed - state "
+                        f"{historical_record.state}"
+            ), cls=DjangoJSONEncoder)
+            renewed_contract.save(username=self.user.username)
+            # copy also contract details and contract contribution plan details
+            self.__copy_details(contract_id=contract_id, amended_contract=renewed_contract)
+            # evaluate amended contract amount notified
+            renewed_contract_dict = model_to_dict(renewed_contract)
+            id_new_renewed = f"{renewed_contract.id}"
+            renewed_contract_dict["id"], renewed_contract_dict["uuid"] = (id_new_renewed, id_new_renewed)
+            return _output_result_success(dict_representation=renewed_contract_dict)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="renew", exception=exc)
+
+    @check_authentication
     def delete(self, contract):
         try:
             # check rights for delete contract
@@ -393,7 +447,8 @@ class Contract(object):
                 ).distinct()
                 for contract in contract_list:
                     # look for approved contract (amendement)
-                    if contract.state in [ContractModel.STATE_EFFECTIVE, ContractModel.STATE_EXECUTABLE] and contract.amendment > 0:
+                    if contract.state in [ContractModel.STATE_EFFECTIVE,
+                                          ContractModel.STATE_EXECUTABLE] and contract.amendment > 0:
                         # get the contract which has the negative amount due
                         if contract.amount_due < 0:
                             contract_dict = model_to_dict(contract)
@@ -447,7 +502,6 @@ class ContractDetails(object):
             if not self.user.has_perms(ContractConfig.gql_mutation_update_contract_perms):
                 raise PermissionError("Unauthorized")
             if phi.is_deleted is False and phi.contribution_plan_bundle:
-                contract_service = Contract(user=self.user)
                 updated_contract = ContractModel.objects.get(id=f'{contract["id"]}')
                 if updated_contract.state not in [ContractModel.STATE_DRAFT,
                                                   ContractModel.STATE_REQUEST_FOR_INFORMATION,
@@ -759,18 +813,6 @@ class PaymentService(object):
                 "premium": contribution
             })
         return payment_details_data
-
-    def submit(self, payment):
-        pass
-
-    def update(self, payment):
-        pass
-
-    def delete(self, payment):
-        pass
-
-    def assign_credit_note(self, payment):
-        pass
 
 
 def _output_exception(model_name, method, exception):
