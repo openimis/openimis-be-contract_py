@@ -117,7 +117,8 @@ class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
     contract_details = models.ForeignKey(ContractDetails, db_column='ContractDetailsUUID',
                                          on_delete=models.deletion.CASCADE)
     contribution = models.ForeignKey(Premium, db_column='ContributionId',
-                                         on_delete=models.deletion.DO_NOTHING, blank=True, null=True)
+                                     related_name='contract_contribution_plan_details', on_delete=models.deletion.DO_NOTHING,
+                                     blank=True, null=True)
 
     objects = ContractContributionPlanDetailsManager()
 
