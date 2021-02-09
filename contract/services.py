@@ -371,6 +371,40 @@ class Contract(object):
         except Exception as exc:
             return _output_exception(model_name="Contract", method="delete", exception=exc)
 
+    @check_authentication
+    def get_negative_amount_amendment(self, credit_note):
+        try:
+            if not self.user.has_perms(ContractConfig.gql_query_contract_perms):
+                raise PermissionError("Unauthorized")
+
+            contract_output_list = []
+            payment_detail = PaymentDetail.objects.filter(
+                payment__id=credit_note["id"]
+            ).prefetch_related(
+                'premium__contract_contribution_plan_details__contract_details__contract'
+            ).prefetch_related(
+                'premium__contract_contribution_plan_details'
+            ).filter(premium__contract_contribution_plan_details__isnull=False)
+
+            if len(list(payment_detail)) > 0:
+                contribution_list_id = [pd.premium.id for pd in payment_detail]
+                contract_list = ContractModel.objects.filter(
+                    contractdetails__contractcontributionplandetails__contribution__id__in=contribution_list_id
+                ).distinct()
+                for contract in contract_list:
+                    # look for approved contract (amendement)
+                    if contract.state in [ContractModel.STATE_EFFECTIVE, ContractModel.STATE_EXECUTABLE] and contract.amendment > 0:
+                        # get the contract which has the negative amount due
+                        if contract.amount_due < 0:
+                            contract_dict = model_to_dict(contract)
+                            contract_id = f"{contract.id}"
+                            contract_dict["id"], contract_dict["uuid"] = (contract_id, contract_id)
+                            contract_output_list.append(contract_dict)
+            # TODO not only get that contracts - but also do another things (it must be specified on wiki page)
+            return _output_result_success(dict_representation=contract_output_list)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="getNegativeAmountAmendment", exception=exc)
+
 
 class ContractDetails(object):
 
