@@ -70,6 +70,15 @@ class ContractAmendInputType(OpenIMISMutation.Input):
     json_ext = graphene.types.json.JSONString(required=False)
 
 
+class ContractRenewInputType(OpenIMISMutation.Input):
+    id = graphene.UUID(required=True)
+    date_valid_from = graphene.Date(required=True)
+    date_valid_to = graphene.Date(required=False)
+    date_payment_due = graphene.Date(required=False)
+    payment_reference = graphene.String(required=False)
+    json_ext = graphene.types.json.JSONString(required=False)
+
+
 class ContractDetailsCreateInputType(OpenIMISMutation.Input):
     id = graphene.UUID(required=False)
     contract_id = graphene.UUID(required=True)

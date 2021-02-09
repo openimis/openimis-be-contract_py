@@ -2,11 +2,12 @@ from core.gql.gql_mutations import DeleteInputType
 from core.gql.gql_mutations.base_mutation  import BaseMutation, BaseDeleteMutation
 from .mutations import ContractCreateMutationMixin, ContractUpdateMutationMixin, \
     ContractDeleteMutationMixin, ContractSubmitMutationMixin, \
-    ContractApproveMutationMixin, ContractCounterMutationMixin, ContractAmendMutationMixin
+    ContractApproveMutationMixin, ContractCounterMutationMixin, \
+    ContractAmendMutationMixin, ContractRenewMutationMixin
 from contract.models import Contract
 from contract.gql.gql_mutations.input_types import ContractCreateInputType, ContractUpdateInputType, \
     ContractSubmitInputType, ContractApproveInputType, ContractCounterInputType, \
-    ContractApproveBulkInputType, ContractAmendInputType
+    ContractApproveBulkInputType, ContractAmendInputType, ContractRenewInputType
 from contract.tasks import approve_contracts
 
 
@@ -93,4 +94,13 @@ class AmendContractMutation(ContractAmendMutationMixin, BaseMutation):
     _model = Contract
 
     class Input(ContractAmendInputType):
+        pass
+
+
+class RenewContractMutation(ContractRenewMutationMixin, BaseMutation):
+    _mutation_class = "RenewContractMutation"
+    _mutation_module = "contract"
+    _model = Contract
+
+    class Input(ContractRenewInputType):
         pass
