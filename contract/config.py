@@ -119,3 +119,30 @@ def get_message_approved_contract(code, name, contact_name, due_amount, payment_
              }
     }
     return message_payment_notification["payment_notification"][language]
+
+
+def get_message_counter_contract(code, name, contact_name, language='en'):
+    message_payment_notification = {
+        "payment_notification":
+            {"en":
+                 F"""
+                 Dear {contact_name} 
+
+                 The contract {code} - {name} was counter.
+                 Please proceed recheck the information and correct the issues, in case of questions please check contact us. 
+
+                 Best regards, 
+                 """
+                ,
+             "fr":
+                 F"""
+                 Monsieur, Madame {contact_name}
+
+                 le contract {code} - {name} à été contré.
+                 Veuillez verifier les information saisie, en cas de question veuillez nous contacter.
+
+                 Meilleurs Salutations 
+                 """
+             }
+    }
+    return message_payment_notification["payment_notification"][language]
