@@ -358,17 +358,9 @@ class Contract(object):
             # check rights for delete contract
             if not self.user.has_perms(ContractConfig.gql_mutation_renew_contract_perms):
                 raise PermissionError("Unauthorized")
-            from core import datetime
+            from core import datetime, datetimedelta
             contract_to_renew = ContractModel.objects.filter(id=contract["id"]).first()
             contract_id = contract["id"]
-            # check if we have date valid to
-            if contract_to_renew.date_valid_to is None:
-                raise ContractUpdateError("Date valid to not specified - hard to "
-                                          "determine when contract is about to end so as to renew it!"
-                                          )
-            # check if date valid from of new entity is bigger than valid to of contract to renew
-            if contract["date_valid_from"] <= contract_to_renew.date_valid_to:
-                raise ContractUpdateError("Renewed contract should be after the terminating contract!")
             # block deleting contract not in Updateable or Approvable state
             state_right = self.__check_rights_by_status(contract_to_renew.state)
             # check if we can amend
@@ -377,16 +369,14 @@ class Contract(object):
             # create copy of the contract
             renewed_contract = copy(contract_to_renew)
             renewed_contract.id = None
-            contract.pop("id")
-            [setattr(renewed_contract, key, contract[key]) for key in contract]
-            # check if chosen fields are not edited
-            fields = ["policy_holder", "code", "amount_notified"]
-            if any(dirty_field in fields for dirty_field in
-                   renewed_contract.get_dirty_fields(check_relationship=True)):
-                raise ContractUpdateError("You cannot update this field during renewed contract!")
-            renewed_contract.state = ContractModel.STATE_DRAFT
-            renewed_contract.amount_rectified = 0
-            renewed_contract.amount_due = 0
+            # Date to (the previous contract) became date From of the new contract (TBC if we need to add 1 day)
+            # Date To of the new contract is calculated by DateFrom new contract + “Duration in month of previous contract“
+            length_contract = (contract_to_renew.date_valid_to.year - contract_to_renew.date_valid_from.year) * 12 \
+                              + (contract_to_renew.date_valid_to.month - contract_to_renew.date_valid_from.month)
+            renewed_contract.date_valid_from = contract_to_renew.date_valid_to + datetimedelta(days=1)
+            renewed_contract.date_valid_to = contract_to_renew.date_valid_to + datetimedelta(months=length_contract)
+            renewed_contract.state, renewed_contract.version = (ContractModel.STATE_DRAFT, 1)
+            renewed_contract.amount_rectified, renewed_contract.amount_due = (0, 0)
             renewed_contract.save(username=self.user.username)
             historical_record = renewed_contract.history.all().first()
             renewed_contract.json_ext = json.dumps(_save_json_external(
