@@ -213,17 +213,19 @@ class Contract(object):
         return list(contract_details.values())
 
     def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None):
-        return [
-            {
+        result = []
+        for cd in contract_details:
+            ph_insuree = PolicyHolderInsuree.objects.filter(Q(insuree_id=cd['insuree_id'], last_policy__isnull=False)).first()
+            policy_id = ph_insuree.last_policy.id if ph_insuree else None
+            result.append({
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
-                "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd['insuree_id']).first().last_policy.id,
+                "policy_id": policy_id,
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id'],
-                "amendment": amendment,
-            }
-            for cd in contract_details
-        ]
+                "amendment": amendment
+            })
+        return result
 
     @check_authentication
     def approve(self, contract):
@@ -477,7 +479,7 @@ class ContractDetails(object):
                     uuid_string = f"{cd.id}"
                     dict_representation = model_to_dict(cd)
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
-                    dict_representation["policy_id"] = phi.last_policy.id
+                    dict_representation["policy_id"] = phi.last_policy.id if phi.last_policy else None
                     dict_representation["amendment"] = contract_details["amendment"]
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
