@@ -245,9 +245,9 @@ class Contract(object):
                 contract_to_approve.date_valid_from,
             )
             # send signal - approve contract
-            ContractContributionPlanDetails(user=self.user)
+            ccpd_service = ContractContributionPlanDetails(user=self.user)
             payment_service = PaymentService(user=self.user)
-            contract_approved = signal_contract_approve.send(
+            signal_contract_approve.send(
                 sender=ContractModel,
                 contract=contract_to_approve,
                 user=self.user,
