@@ -247,7 +247,7 @@ class Contract(object):
             # send signal - approve contract
             ccpd_service = ContractContributionPlanDetails(user=self.user)
             payment_service = PaymentService(user=self.user)
-            contract_approved = signal_contract_approve.send(
+            signal_contract_approve.send(
                 sender=ContractModel,
                 contract=contract_to_approve,
                 user=self.user,
@@ -257,7 +257,7 @@ class Contract(object):
                 ccpd_service=ccpd_service
             )
             # ccpd.create_contribution(contract_contribution_plan_details)
-            dict_representation = model_to_dict(contract_approved[0][1])
+            dict_representation = {}
             id_contract_approved = f"{contract_to_approve.id}"
             dict_representation["id"], dict_representation["uuid"] = id_contract_approved, id_contract_approved
             return _output_result_success(dict_representation=dict_representation)
