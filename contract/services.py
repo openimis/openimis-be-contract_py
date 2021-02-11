@@ -213,17 +213,19 @@ class Contract(object):
         return list(contract_details.values())
 
     def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None):
-        return [
-            {
+        result = []
+        for cd in contract_details:
+            ph_insuree = PolicyHolderInsuree.objects.filter(Q(insuree_id=cd['insuree_id'], last_policy__isnull=False)).first()
+            policy_id = ph_insuree.last_policy.id if ph_insuree else None
+            result.append({
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
-                "policy_id": PolicyHolderInsuree.objects.filter(insuree_id=cd['insuree_id']).first().last_policy.id,
+                "policy_id": policy_id,
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id'],
-                "amendment": amendment,
-            }
-            for cd in contract_details
-        ]
+                "amendment": amendment
+            })
+        return result
 
     @check_authentication
     def approve(self, contract):
@@ -321,8 +323,8 @@ class Contract(object):
                 raise ContractUpdateError("You cannot update this field during amend contract!")
             signal_contract.send(sender=ContractModel, contract=contract_to_amend, user=self.user)
             signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
-            # copy also contract details and contract contribution plan details
-            self.__copy_details(contract_id=contract_id, amended_contract=amended_contract)
+            # copy also contract details
+            self.__copy_details(contract_id=contract_id, modified_contract=amended_contract)
             # evaluate amended contract amount notified
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
@@ -343,14 +345,57 @@ class Contract(object):
         except Exception as exc:
             return _output_exception(model_name="Contract", method="amend", exception=exc)
 
-    def __copy_details(self, contract_id, amended_contract):
-        list_cd = ContractDetailsModel.objects.filter(contract_id=contract_id).all()
+    def __copy_details(self, contract_id, modified_contract):
+        list_cd = list(ContractDetailsModel.objects.filter(contract_id=contract_id).all())
         for cd in list_cd:
             cd_new = copy(cd)
             cd_new.id = None
-            cd_new.contract = amended_contract
-            cd_new.json_ext = None
+            cd_new.contract = modified_contract
             cd_new.save(username=self.user.username)
+
+    @check_authentication
+    def renew(self, contract):
+        try:
+            # check rights for renew contract
+            if not self.user.has_perms(ContractConfig.gql_mutation_renew_contract_perms):
+                raise PermissionError("Unauthorized")
+            from core import datetime, datetimedelta
+            contract_to_renew = ContractModel.objects.filter(id=contract["id"]).first()
+            contract_id = contract["id"]
+            # block renewing contract not in Updateable or Approvable state
+            state_right = self.__check_rights_by_status(contract_to_renew.state)
+            # check if we can renew
+            if state_right is not "cannot_update" and contract_to_renew.state is not ContractModel.STATE_TERMINATED:
+                raise ContractUpdateError("You cannot renew this contract!")
+            # create copy of the contract - later we also copy contract detail
+            renewed_contract = copy(contract_to_renew)
+            # TO DO : if a policyholder is set, the contract details must be removed and PHinsuree imported again
+            renewed_contract.id = None
+            # Date to (the previous contract) became date From of the new contract (TBC if we need to add 1 day)
+            # Date To of the new contract is calculated by DateFrom new contract + “Duration in month of previous contract“
+            length_contract = (contract_to_renew.date_valid_to.year - contract_to_renew.date_valid_from.year) * 12 \
+                              + (contract_to_renew.date_valid_to.month - contract_to_renew.date_valid_from.month)
+            renewed_contract.date_valid_from = contract_to_renew.date_valid_to + datetimedelta(days=1)
+            renewed_contract.date_valid_to = contract_to_renew.date_valid_to + datetimedelta(months=length_contract)
+            renewed_contract.state, renewed_contract.version = (ContractModel.STATE_DRAFT, 1)
+            renewed_contract.amount_rectified, renewed_contract.amount_due = (0, 0)
+            renewed_contract.save(username=self.user.username)
+            historical_record = renewed_contract.history.all().first()
+            renewed_contract.json_ext = json.dumps(_save_json_external(
+                user_id=historical_record.user_updated.id,
+                datetime=historical_record.date_updated,
+                message=f"contract renewed - state "
+                        f"{historical_record.state}"
+            ), cls=DjangoJSONEncoder)
+            renewed_contract.save(username=self.user.username)
+            # copy also contract details
+            self.__copy_details(contract_id=contract_id, modified_contract=renewed_contract)
+            renewed_contract_dict = model_to_dict(renewed_contract)
+            id_new_renewed = f"{renewed_contract.id}"
+            renewed_contract_dict["id"], renewed_contract_dict["uuid"] = (id_new_renewed, id_new_renewed)
+            return _output_result_success(dict_representation=renewed_contract_dict)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="renew", exception=exc)
 
     @check_authentication
     def delete(self, contract):
@@ -393,7 +438,8 @@ class Contract(object):
                 ).distinct()
                 for contract in contract_list:
                     # look for approved contract (amendement)
-                    if contract.state in [ContractModel.STATE_EFFECTIVE, ContractModel.STATE_EXECUTABLE] and contract.amendment > 0:
+                    if contract.state in [ContractModel.STATE_EFFECTIVE,
+                                          ContractModel.STATE_EXECUTABLE] and contract.amendment > 0:
                         # get the contract which has the negative amount due
                         if contract.amount_due < 0:
                             contract_dict = model_to_dict(contract)
@@ -432,7 +478,7 @@ class ContractDetails(object):
                     uuid_string = f"{cd.id}"
                     dict_representation = model_to_dict(cd)
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
-                    dict_representation["policy_id"] = phi.last_policy.id
+                    dict_representation["policy_id"] = phi.last_policy.id if phi.last_policy else None
                     dict_representation["amendment"] = contract_details["amendment"]
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
@@ -447,7 +493,6 @@ class ContractDetails(object):
             if not self.user.has_perms(ContractConfig.gql_mutation_update_contract_perms):
                 raise PermissionError("Unauthorized")
             if phi.is_deleted is False and phi.contribution_plan_bundle:
-                contract_service = Contract(user=self.user)
                 updated_contract = ContractModel.objects.get(id=f'{contract["id"]}')
                 if updated_contract.state not in [ContractModel.STATE_DRAFT,
                                                   ContractModel.STATE_REQUEST_FOR_INFORMATION,
@@ -759,18 +804,6 @@ class PaymentService(object):
                 "premium": contribution
             })
         return payment_details_data
-
-    def submit(self, payment):
-        pass
-
-    def update(self, payment):
-        pass
-
-    def delete(self, payment):
-        pass
-
-    def assign_credit_note(self, payment):
-        pass
 
 
 def _output_exception(model_name, method, exception):
