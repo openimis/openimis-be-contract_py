@@ -8,7 +8,7 @@ It is dedicated to be deployed as a module of [openimis-be_py](https://github.co
 * tblContractContributionPlanDetails > ContractContributionPlanDetails
 
 ## Listened Django Signals
-- post_save of Payment: handles service activate_contracted_policies - only when payment 
+- post_save - Payment: handles service activate_contracted_policies - only when payment 
 is related to the contract/contracts. (it is verified by this post save)
 Another payments are omitted in processing.
 
@@ -32,6 +32,12 @@ Another payments are omitted in processing.
 * deleteContractDetails
 * createContractDetailsByPhInsuree
 
+## Additional mutation log helper in Create graphQl mutations - ObjectMutation from core
+- "ObjectMutation" from openimis-be-core_py - models.py
+- "object_mutated" method allows the creation of an object to update the xxxMutation easily.
+- dedicated for createContract and createContractDetails graphQl mutations 
+- more info about it and how it was implemented here in Contract module in models.py in class ObjectMutation in docs string
+
 ## Services
 - Contract
   - create
@@ -51,8 +57,8 @@ Another payments are omitted in processing.
   - contract_valuation
   - create_contribution
 - PaymentService
-  - create
-  - collect_payment_details
+  - create (with creating payment details for that newly created payment)
+  - collect_payment_details (collect data)
 
 ## Configuration options (can be changed via core.ModuleConfiguration)
 * gql_query_contract_perms: required rights to call createContract GraphQL Query (default: ["152101"])
@@ -65,3 +71,17 @@ Another payments are omitted in processing.
 * gql_mutation_submit_contract_perms: required rights to call submitContract GraphQL Mutation (default: ["152107"])
 * gql_mutation_approve_ask_for_change_contract_perms: required rights to call approveContract, approveBulkContract and counterContract GraphQL Mutations (default: ["152108"])
 * gql_mutation_amend_contract_perms: required rights to call amendContract GraphQL Mutation (default: ["152109"])
+
+## openIMIS Modules Dependencies
+core.models.HistoryModel
+core.models.HistoryBusinessModel
+policyholder.models.PolicyHolder
+policyholder.models.PolicyHolderInsuree
+contribution_plan.models.ContributionPlan
+contribution_plan.models.ContributionPlanBundleDetails
+insuree.models.Insuree
+insuree.models.InsureePolicy
+contribution.models.Premium
+payment.models.Payment
+payment.models.PaymentDetail
+policy.models.Policy
