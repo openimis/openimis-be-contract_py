@@ -53,7 +53,7 @@ Another payments are omitted in processing.
   - update_from_ph_insuree
   - ph_insuree_to_contract_details  
 - ContractContributionPlanDetails - CRUD services, replace
-  - create_ccpd (ccpd - acronym of contrac contribution plan details)
+  - create_ccpd (ccpd - acronym of contract contribution plan details)
   - contract_valuation
   - create_contribution
 - PaymentService
