@@ -435,6 +435,16 @@ class Contract(object):
                             f"{historical_record.state}"
                 ), cls=DjangoJSONEncoder)
                 contract_to_terminate.save(username=self.user.username)
+                return {
+                    "success": True,
+                    "message": "Ok",
+                    "detail": "",
+                }
+            return {
+                "success": False,
+                "message": "Cannot terminating contract!",
+                "detail": "This contract is still valid!",
+            }
         except Exception as exc:
             return _output_exception(model_name="Contract", method="terminateContract", exception=exc)
 
