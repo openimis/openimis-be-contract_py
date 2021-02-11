@@ -23,7 +23,14 @@ setup(
     install_requires=[
         'django',
         'django-db-signals',
-        'djangorestframework'
+        'djangorestframework',
+        'openimis-be-core',
+        'openimis-be-policyholder',
+        'openimis-be-contribution_plan',
+        'openimis-be-payment',
+        'openimis-be-contribution',
+        'openimis-be-insuree',
+        'openimis-be-policy',
     ],
     classifiers=[
         'Environment :: Web Environment',
