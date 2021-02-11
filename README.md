@@ -58,7 +58,7 @@ Another payments are omitted in processing.
   - create_contribution
 - PaymentService
   - create (with creating payment details for that newly created payment)
-  - collect_payment_details (collect data)
+  - collect_payment_details (collect data from all contributions to assign it to the payment details)
 
 ## Configuration options (can be changed via core.ModuleConfiguration)
 * gql_query_contract_perms: required rights to call createContract GraphQL Query (default: ["152101"])
