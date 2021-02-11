@@ -2,7 +2,9 @@ from core.gql.gql_mutations import DeleteInputType
 from core.gql.gql_mutations.base_mutation import BaseMutation, BaseDeleteMutation, \
     BaseHistoryModelCreateMutationMixin, BaseHistoryModelUpdateMutationMixin, \
     BaseHistoryModelDeleteMutationMixin
-from contract.gql.gql_mutations import ContractDetailsCreateInputType, ContractDetailsUpdateInputType
+from .mutations import ContractDetailsFromPHInsureeMutationMixin
+from contract.gql.gql_mutations import ContractDetailsCreateInputType, ContractDetailsUpdateInputType, \
+    ContractDetailsCreateFromInsureeInputType
 from contract.models import ContractDetails, ContractDetailsMutation
 
 
@@ -41,4 +43,13 @@ class DeleteContractDetailsMutation(BaseHistoryModelDeleteMutationMixin, BaseDel
     _model = ContractDetails
 
     class Input(DeleteInputType):
+        pass
+
+
+class CreateContractDetailByPolicyHolderInsureeMutation(ContractDetailsFromPHInsureeMutationMixin, BaseMutation):
+    _mutation_class = "CreateContractDetailByPolicyHolderInsureetMutation"
+    _mutation_module = "contract"
+    _model = ContractDetails
+
+    class Input(ContractDetailsCreateFromInsureeInputType):
         pass

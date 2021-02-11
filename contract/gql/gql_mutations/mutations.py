@@ -1,7 +1,8 @@
 from core import TimeUtils
 from core.schema import OpenIMISMutation
 from core.gql.gql_mutations import ObjectNotExistException
-from contract.services import Contract as ContractService
+from contract.services import Contract as ContractService, \
+    ContractDetails as ContractDetailsService
 from contract.models import Contract, ContractMutation
 from contract.apps import ContractConfig
 from django.contrib.auth.models import AnonymousUser
@@ -203,4 +204,40 @@ class ContractAmendMutationMixin:
     def amend_contract(cls, user, contract):
         contract_service = ContractService(user=user)
         output_data = contract_service.amend(contract=contract)
+        return output_data
+
+
+class ContractDetailsFromPHInsureeMutationMixin:
+
+    @property
+    def _model(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms):
+            raise ValidationError("mutation.authentication_required")
+
+    @classmethod
+    def _mutate(cls, user, **data):
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        output = cls.create_cd_from_ph_insuree(user=user, data=data)
+        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+
+    @classmethod
+    def create_cd_from_ph_insuree(cls, user, data):
+        contract_details_service = ContractDetailsService(user=user)
+        data_contract = {
+            "id": data["contract_id"]
+        }
+        data_insuree = {
+            "id": data["policy_holder_insuree_id"]
+        }
+        output_data = contract_details_service.ph_insuree_to_contract_details(
+            contract=data_contract,
+            ph_insuree=data_insuree
+        )
         return output_data

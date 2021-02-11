@@ -86,3 +86,8 @@ class ContractDetailsUpdateInputType(OpenIMISMutation.Input):
     contribution_plan_bundle_id = graphene.UUID(required=False)
     json_ext = graphene.types.json.JSONString(required=False)
     json_param = graphene.types.json.JSONString(required=False)
+
+
+class ContractDetailsCreateFromInsureeInputType(OpenIMISMutation.Input):
+    contract_id = graphene.UUID(required=True)
+    policy_holder_insuree_id = graphene.UUID(required=True)
