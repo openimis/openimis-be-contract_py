@@ -323,8 +323,8 @@ class Contract(object):
                 raise ContractUpdateError("You cannot update this field during amend contract!")
             signal_contract.send(sender=ContractModel, contract=contract_to_amend, user=self.user)
             signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
-            # copy also contract details and contract contribution plan details
-            self.__copy_details(contract_id=contract_id, amended_contract=amended_contract)
+            # copy also contract details
+            self.__copy_details(contract_id=contract_id, modified_contract=amended_contract)
             # evaluate amended contract amount notified
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
@@ -345,30 +345,29 @@ class Contract(object):
         except Exception as exc:
             return _output_exception(model_name="Contract", method="amend", exception=exc)
 
-    def __copy_details(self, contract_id, amended_contract):
-        list_cd = ContractDetailsModel.objects.filter(contract_id=contract_id).all()
+    def __copy_details(self, contract_id, modified_contract):
+        list_cd = list(ContractDetailsModel.objects.filter(contract_id=contract_id).all())
         for cd in list_cd:
             cd_new = copy(cd)
             cd_new.id = None
-            cd_new.contract = amended_contract
-            cd_new.json_ext = None
+            cd_new.contract = modified_contract
             cd_new.save(username=self.user.username)
 
     @check_authentication
     def renew(self, contract):
         try:
-            # check rights for delete contract
+            # check rights for renew contract
             if not self.user.has_perms(ContractConfig.gql_mutation_renew_contract_perms):
                 raise PermissionError("Unauthorized")
             from core import datetime, datetimedelta
             contract_to_renew = ContractModel.objects.filter(id=contract["id"]).first()
             contract_id = contract["id"]
-            # block deleting contract not in Updateable or Approvable state
+            # block renewing contract not in Updateable or Approvable state
             state_right = self.__check_rights_by_status(contract_to_renew.state)
-            # check if we can amend
+            # check if we can renew
             if state_right is not "cannot_update" and contract_to_renew.state is not ContractModel.STATE_TERMINATED:
                 raise ContractUpdateError("You cannot renew this contract!")
-            # create copy of the contract
+            # create copy of the contract - later we also copy contract detail
             renewed_contract = copy(contract_to_renew)
             renewed_contract.id = None
             # Date to (the previous contract) became date From of the new contract (TBC if we need to add 1 day)
@@ -388,9 +387,8 @@ class Contract(object):
                         f"{historical_record.state}"
             ), cls=DjangoJSONEncoder)
             renewed_contract.save(username=self.user.username)
-            # copy also contract details and contract contribution plan details
-            self.__copy_details(contract_id=contract_id, amended_contract=renewed_contract)
-            # evaluate amended contract amount notified
+            # copy also contract details
+            self.__copy_details(contract_id=contract_id, modified_contract=renewed_contract)
             renewed_contract_dict = model_to_dict(renewed_contract)
             id_new_renewed = f"{renewed_contract.id}"
             renewed_contract_dict["id"], renewed_contract_dict["uuid"] = (id_new_renewed, id_new_renewed)
