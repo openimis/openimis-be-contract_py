@@ -75,6 +75,7 @@ Another payments are omitted in processing.
 ## openIMIS Modules Dependencies
 - core.models.HistoryModel
 - core.models.HistoryBusinessModel
+- core.models.ObjectMutation
 - policyholder.models.PolicyHolder
 - policyholder.models.PolicyHolderInsuree
 - contribution_plan.models.ContributionPlan
