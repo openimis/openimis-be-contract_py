@@ -346,7 +346,7 @@ class Contract(object):
             return _output_exception(model_name="Contract", method="amend", exception=exc)
 
     def __copy_details(self, contract_id, modified_contract):
-        list_cd = ContractDetailsModel.objects.filter(contract_id=contract_id).all()
+        list_cd = list(ContractDetailsModel.objects.filter(contract_id=contract_id).all())
         for cd in list_cd:
             cd_new = copy(cd)
             cd_new.id = None
