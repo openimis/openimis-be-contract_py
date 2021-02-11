@@ -416,6 +416,29 @@ class Contract(object):
             return _output_exception(model_name="Contract", method="delete", exception=exc)
 
     @check_authentication
+    def terminate_contract(self, contract):
+        try:
+            # TODO - add this service to the tasks.py in apscheduler once a day
+            #  to check if contract might be terminated
+            contract_to_terminate = ContractModel.objects.filter(id=contract["id"]).first()
+            from core import datetime, datetimedelta
+            now = datetime.datetime.now()
+            if contract_to_terminate.date_valid_to < now:
+                # we can marked that contract as a terminated
+                contract_to_terminate.state = ContractModel.STATE_TERMINATED
+                contract_to_terminate.save(username=self.user.username)
+                historical_record = contract_to_terminate.history.all().first()
+                contract_to_terminate.json_ext = json.dumps(_save_json_external(
+                    user_id=historical_record.user_updated.id,
+                    datetime=historical_record.date_updated,
+                    message=f"contract terminated - state "
+                            f"{historical_record.state}"
+                ), cls=DjangoJSONEncoder)
+                contract_to_terminate.save(username=self.user.username)
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="terminateContract", exception=exc)
+
+    @check_authentication
     def get_negative_amount_amendment(self, credit_note):
         try:
             if not self.user.has_perms(ContractConfig.gql_query_contract_perms):

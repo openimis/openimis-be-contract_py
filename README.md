@@ -48,7 +48,7 @@ Another payments are omitted in processing.
   - renew
   - delete
   - get_negative_amount_amendment
-  - terminate 
+  - terminate_contract 
 - ContractDetails
   - update_from_ph_insuree
   - ph_insuree_to_contract_details  
