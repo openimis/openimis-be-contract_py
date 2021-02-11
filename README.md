@@ -73,15 +73,15 @@ Another payments are omitted in processing.
 * gql_mutation_amend_contract_perms: required rights to call amendContract GraphQL Mutation (default: ["152109"])
 
 ## openIMIS Modules Dependencies
-core.models.HistoryModel
-core.models.HistoryBusinessModel
-policyholder.models.PolicyHolder
-policyholder.models.PolicyHolderInsuree
-contribution_plan.models.ContributionPlan
-contribution_plan.models.ContributionPlanBundleDetails
-insuree.models.Insuree
-insuree.models.InsureePolicy
-contribution.models.Premium
-payment.models.Payment
-payment.models.PaymentDetail
-policy.models.Policy
+- core.models.HistoryModel
+- core.models.HistoryBusinessModel
+- policyholder.models.PolicyHolder
+- policyholder.models.PolicyHolderInsuree
+- contribution_plan.models.ContributionPlan
+- contribution_plan.models.ContributionPlanBundleDetails
+- insuree.models.Insuree
+- insuree.models.InsureePolicy
+- contribution.models.Premium
+- payment.models.Payment
+- payment.models.PaymentDetail
+- policy.models.Policy
