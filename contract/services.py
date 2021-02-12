@@ -416,35 +416,38 @@ class Contract(object):
             return _output_exception(model_name="Contract", method="delete", exception=exc)
 
     @check_authentication
-    def terminate_contract(self, contract):
+    def terminate_contract(self):
         try:
             # TODO - add this service to the tasks.py in apscheduler once a day
             #  to check if contract might be terminated
-            contract_to_terminate = ContractModel.objects.filter(id=contract["id"]).first()
-            from core import datetime, datetimedelta
-            now = datetime.datetime.now()
-            if contract_to_terminate.date_valid_to < now:
-                # we can marked that contract as a terminated
-                contract_to_terminate.state = ContractModel.STATE_TERMINATED
-                contract_to_terminate.save(username=self.user.username)
-                historical_record = contract_to_terminate.history.all().first()
-                contract_to_terminate.json_ext = json.dumps(_save_json_external(
-                    user_id=historical_record.user_updated.id,
-                    datetime=historical_record.date_updated,
-                    message=f"contract terminated - state "
-                            f"{historical_record.state}"
-                ), cls=DjangoJSONEncoder)
-                contract_to_terminate.save(username=self.user.username)
+            from core import datetime
+            contracts_to_terminate = list(ContractModel.objects.filter(
+                Q(date_valid_to__lt=datetime.datetime.now(), state=7)
+            ))
+            if len(contracts_to_terminate) > 0:
+                for contract in contracts_to_terminate:
+                    # we can marked that contract as a terminated
+                    contract.state = ContractModel.STATE_TERMINATED
+                    contract.save(username=self.user.username)
+                    historical_record = contract.history.all().first()
+                    contract.json_ext = json.dumps(_save_json_external(
+                        user_id=historical_record.user_updated.id,
+                        datetime=historical_record.date_updated,
+                        message=f"contract terminated - state "
+                                f"{historical_record.state}"
+                    ), cls=DjangoJSONEncoder)
+                    contract.save(username=self.user.username)
                 return {
                     "success": True,
                     "message": "Ok",
                     "detail": "",
                 }
-            return {
-                "success": False,
-                "message": "Cannot terminating contract!",
-                "detail": "This contract is still valid!",
-            }
+            else:
+                return {
+                    "success": False,
+                    "message": "No contracts to terminate!",
+                    "detail": "We do not have any contract to be terminated!",
+                }
         except Exception as exc:
             return _output_exception(model_name="Contract", method="terminateContract", exception=exc)
 
