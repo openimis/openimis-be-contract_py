@@ -417,6 +417,42 @@ class Contract(object):
             return _output_exception(model_name="Contract", method="delete", exception=exc)
 
     @check_authentication
+    def terminate_contract(self):
+        try:
+            # TODO - add this service to the tasks.py in apscheduler once a day
+            #  to check if contract might be terminated
+            from core import datetime
+            contracts_to_terminate = list(ContractModel.objects.filter(
+                Q(date_valid_to__lt=datetime.datetime.now(), state=7)
+            ))
+            if len(contracts_to_terminate) > 0:
+                for contract in contracts_to_terminate:
+                    # we can marked that contract as a terminated
+                    contract.state = ContractModel.STATE_TERMINATED
+                    contract.save(username=self.user.username)
+                    historical_record = contract.history.all().first()
+                    contract.json_ext = json.dumps(_save_json_external(
+                        user_id=historical_record.user_updated.id,
+                        datetime=historical_record.date_updated,
+                        message=f"contract terminated - state "
+                                f"{historical_record.state}"
+                    ), cls=DjangoJSONEncoder)
+                    contract.save(username=self.user.username)
+                return {
+                    "success": True,
+                    "message": "Ok",
+                    "detail": "",
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "No contracts to terminate!",
+                    "detail": "We do not have any contract to be terminated!",
+                }
+        except Exception as exc:
+            return _output_exception(model_name="Contract", method="terminateContract", exception=exc)
+
+    @check_authentication
     def get_negative_amount_amendment(self, credit_note):
         try:
             if not self.user.has_perms(ContractConfig.gql_query_contract_perms):
