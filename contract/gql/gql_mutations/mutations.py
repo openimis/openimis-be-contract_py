@@ -204,7 +204,7 @@ class ContractAmendMutationMixin:
             ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
             return None
         else:
-            return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+            return f"Error! - {output['message']}: {output['detail']}"
 
     @classmethod
     def amend_contract(cls, user, contract):
@@ -237,7 +237,7 @@ class ContractRenewMutationMixin:
             ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
             return None
         else:
-            return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+            return f"Error! - {output['message']}: {output['detail']}"
 
     @classmethod
     def renew_contract(cls, user, contract):
