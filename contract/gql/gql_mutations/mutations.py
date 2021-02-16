@@ -29,11 +29,11 @@ class ContractCreateMutationMixin:
             data.pop('client_mutation_label')
         output = cls.create_contract(user=user, contract=data)
         if output["success"]:
-           contract = Contract.objects.get(id=output["data"]["id"])
-           ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
-           return None
+            contract = Contract.objects.get(id=output["data"]["id"])
+            ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+            return None
         else:
-           return f"Error! - {output['message']}: {output['detail']}"
+            return f"Error! - {output['message']}: {output['detail']}"
 
     @classmethod
     def create_contract(cls, user, contract):
@@ -193,12 +193,18 @@ class ContractAmendMutationMixin:
 
     @classmethod
     def _mutate(cls, user, **data):
+        client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
             data.pop('client_mutation_id')
         if "client_mutation_label" in data:
             data.pop('client_mutation_label')
         output = cls.amend_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        if output["success"]:
+            contract = Contract.objects.get(id=output["data"]["id"])
+            ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+            return None
+        else:
+            return f"Error! - {output['message']}: {output['detail']}"
 
     @classmethod
     def amend_contract(cls, user, contract):
@@ -220,12 +226,18 @@ class ContractRenewMutationMixin:
 
     @classmethod
     def _mutate(cls, user, **data):
+        client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
             data.pop('client_mutation_id')
         if "client_mutation_label" in data:
             data.pop('client_mutation_label')
         output = cls.renew_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        if output["success"]:
+            contract = Contract.objects.get(id=output["data"]["id"])
+            ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+            return None
+        else:
+            return f"Error! - {output['message']}: {output['detail']}"
 
     @classmethod
     def renew_contract(cls, user, contract):
