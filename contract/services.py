@@ -651,37 +651,39 @@ class ContractContributionPlanDetails(object):
             total_amount = 0
             amendment = 0
             for contract_details in contract_contribution_plan_details["contract_details"]:
-                cpbd = ContributionPlanBundleDetails.objects.filter(
+                cpbd_list = ContributionPlanBundleDetails.objects.filter(
                     contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
-                )[0]
-                amendment = contract_details["amendment"]
-                ccpd = ContractContributionPlanDetailsModel(
-                    **{
-                        "contract_details_id": contract_details["id"],
-                        "contribution_plan_id": f"{cpbd.contribution_plan.id}",
-                        "policy_id": contract_details["policy_id"],
-                    }
                 )
-                # TODO here will be a function from calculation module
-                #  to count the value for amount. And now temporary value is here
-                #  until calculation module be developed
-                calculated_amount = 250
-                total_amount += calculated_amount
-                ccpd_record = model_to_dict(ccpd)
-                ccpd_record["calculated_amount"] = calculated_amount
-                if contract_contribution_plan_details["save"]:
-                    ccpd_list, total_amount, ccpd_record = self.__append_contract_cpd_to_list(
-                        ccpd=ccpd,
-                        cp=cpbd.contribution_plan,
-                        date_valid_from=contract_details["contract_date_valid_from"],
-                        insuree_id=contract_details["insuree_id"],
-                        total_amount=total_amount,
-                        calculated_amount=calculated_amount,
-                        ccpd_list=ccpd_list,
-                        ccpd_record=ccpd_record
+                amendment = contract_details["amendment"]
+                #cpbd = cpbd_list[0]
+                for cpbd in cpbd_list:
+                    ccpd = ContractContributionPlanDetailsModel(
+                        **{
+                            "contract_details_id": contract_details["id"],
+                            "contribution_plan_id": f"{cpbd.contribution_plan.id}",
+                            "policy_id": contract_details["policy_id"],
+                        }
                     )
-                if "id" not in ccpd_record:
-                    ccpd_list.append(ccpd_record)
+                    # TODO here will be a function from calculation module
+                    #  to count the value for amount. And now temporary value is here
+                    #  until calculation module be developed
+                    calculated_amount = 250
+                    total_amount += calculated_amount
+                    ccpd_record = model_to_dict(ccpd)
+                    ccpd_record["calculated_amount"] = calculated_amount
+                    if contract_contribution_plan_details["save"]:
+                        ccpd_list, total_amount, ccpd_record = self.__append_contract_cpd_to_list(
+                            ccpd=ccpd,
+                            cp=cpbd.contribution_plan,
+                            date_valid_from=contract_details["contract_date_valid_from"],
+                            insuree_id=contract_details["insuree_id"],
+                            total_amount=total_amount,
+                            calculated_amount=calculated_amount,
+                            ccpd_list=ccpd_list,
+                            ccpd_record=ccpd_record
+                        )
+                    if "id" not in ccpd_record:
+                        ccpd_list.append(ccpd_record)
             if amendment > 0:
                 # get the payment from the previous version of the contract
                 contract_detail_id = contract_contribution_plan_details["contract_details"][0]["id"]
