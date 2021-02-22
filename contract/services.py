@@ -16,6 +16,7 @@ from contract.signals import signal_contract, signal_contract_approve
 from contract.models import Contract as ContractModel, \
     ContractDetails as ContractDetailsModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
+from calculation.services import run_calculation_rules
 
 from policyholder.models import PolicyHolderInsuree
 from contribution.models import Premium, Payer
@@ -221,6 +222,7 @@ class Contract(object):
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
                 "policy_id": policy_id,
+                "json_ext": f"{cd['json_ext']}",
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id'],
                 "amendment": amendment
@@ -502,6 +504,7 @@ class ContractDetails(object):
             for phi in policy_holder_insuree:
                 # TODO add the validity condition also!
                 if phi.is_deleted == False and phi.contribution_plan_bundle:
+                    from core import datetime, datetimedelta
                     cd = ContractDetailsModel(
                         **{
                             "contract_id": contract_details["contract_id"],
@@ -515,6 +518,7 @@ class ContractDetails(object):
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
                     dict_representation["policy_id"] = phi.last_policy.id if phi.last_policy else None
                     dict_representation["amendment"] = contract_details["amendment"]
+                    dict_representation["contract_date_valid_from"] = cd.contract.date_valid_from
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
             return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
@@ -655,7 +659,6 @@ class ContractContributionPlanDetails(object):
                     contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
                 )
                 amendment = contract_details["amendment"]
-                #cpbd = cpbd_list[0]
                 for cpbd in cpbd_list:
                     ccpd = ContractContributionPlanDetailsModel(
                         **{
@@ -665,9 +668,12 @@ class ContractContributionPlanDetails(object):
                         }
                     )
                     # TODO here will be a function from calculation module
-                    #  to count the value for amount. And now temporary value is here
-                    #  until calculation module be developed
-                    calculated_amount = 250
+                    result_calculations = run_calculation_rules(ccpd, "create", self.user)
+                    calculated_amount = 0
+                    if result_calculations:
+                        from core import datetime, datetimedelta
+                        length_contribution = cpbd.contribution_plan.get_contribution_length()
+                        calculated_amount = result_calculations[0][1] * length_contribution
                     total_amount += calculated_amount
                     ccpd_record = model_to_dict(ccpd)
                     ccpd_record["calculated_amount"] = calculated_amount
@@ -742,7 +748,14 @@ class ContractContributionPlanDetails(object):
                 # TODO here will be a function from calculation module
                 #  to count the value for amount. And now temporary value is here
                 #  until calculation module be developed
-                calculated_amount = 250
+                result_calculations = run_calculation_rules(ccpd, "create", self.user)
+                calculated_amount = 0
+                if result_calculations:
+                    from core import datetime, datetimedelta
+                    length_ccpd = (ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
+                            + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month)
+                    calculated_amount = result_calculations[0][1] * length_ccpd
+                #calculated_amount = 250
                 total_amount += calculated_amount
                 ccpd_record = model_to_dict(ccpd_result)
                 ccpd_record["calculated_amount"] = calculated_amount
