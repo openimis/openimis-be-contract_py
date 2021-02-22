@@ -12,7 +12,7 @@ from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
 from contract.gql.gql_mutations.contract_mutations import CreateContractMutation, \
     UpdateContractMutation, DeleteContractMutation, SubmitContractMutation, ApproveContractMutation, \
     ApproveContractBulkMutation, CounterContractMutation, \
-    AmendContractMutation, RenewContractMutation
+    AmendContractMutation, RenewContractMutation, CounterContractBulkMutation
 from contract.gql.gql_mutations.contract_details_mutations import CreateContractDetailsMutation, \
     UpdateContractDetailsMutation, DeleteContractDetailsMutation, \
     CreateContractDetailByPolicyHolderInsureeMutation
@@ -99,6 +99,7 @@ class Mutation(graphene.ObjectType):
     approve_contract = ApproveContractMutation.Field()
     approve_bulk_contract = ApproveContractBulkMutation.Field()
     counter_contract = CounterContractMutation.Field()
+    counter_bulk_contract = CounterContractBulkMutation.Field()
     amend_contract = AmendContractMutation.Field()
     renew_contract = RenewContractMutation.Field()
 
