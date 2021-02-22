@@ -668,14 +668,12 @@ class ContractContributionPlanDetails(object):
                             "policy_id": contract_details["policy_id"],
                         }
                     )
-                    # TODO here will be a function from calculation module
                     result_calculations = run_calculation_rules(ccpd, "create", self.user)
-                    calculated_amount = 0
+                    from core import datetime, datetimedelta
+                    length_contribution = cpbd.contribution_plan.get_contribution_length()
                     if result_calculations:
-                        from core import datetime, datetimedelta
-                        length_contribution = cpbd.contribution_plan.get_contribution_length()
-                        calculated_amount = result_calculations[0][1] * length_contribution
-                    total_amount += calculated_amount
+                        calculated_amount = sum([rc[1] * length_contribution if rc[1] not in [None, False] else 0 for rc in result_calculations])
+                        total_amount += calculated_amount
                     ccpd_record = model_to_dict(ccpd)
                     ccpd_record["calculated_amount"] = calculated_amount
                     if contract_contribution_plan_details["save"]:
@@ -746,18 +744,14 @@ class ContractContributionPlanDetails(object):
             # recalculate
             total_amount = total_amount - calculated_amount
             for ccpd_result in ccpd_results:
-                # TODO here will be a function from calculation module
-                #  to count the value for amount. And now temporary value is here
-                #  until calculation module be developed
-                result_calculations = run_calculation_rules(ccpd, "create", self.user)
-                calculated_amount = 0
+                from core import datetime, datetimedelta
+                length_ccpd = (ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
+                              + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month)
+                result_calculations = run_calculation_rules(ccpd, "update", self.user)
+                # rc - result calculation
                 if result_calculations:
-                    from core import datetime, datetimedelta
-                    length_ccpd = (ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
-                            + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month)
-                    calculated_amount = result_calculations[0][1] * length_ccpd
-                #calculated_amount = 250
-                total_amount += calculated_amount
+                    calculated_amount = sum([rc[1] * length_ccpd if rc[1] not in [None, False] else 0 for rc in result_calculations])
+                    total_amount += calculated_amount
                 ccpd_record = model_to_dict(ccpd_result)
                 ccpd_record["calculated_amount"] = calculated_amount
                 uuid_string = f"{ccpd_result.id}"
