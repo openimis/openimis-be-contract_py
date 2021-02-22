@@ -371,6 +371,7 @@ class Contract(object):
                 raise ContractUpdateError("You cannot renew this contract!")
             # create copy of the contract - later we also copy contract detail
             renewed_contract = copy(contract_to_renew)
+            # TO DO : if a policyholder is set, the contract details must be removed and PHinsuree imported again
             renewed_contract.id = None
             # Date to (the previous contract) became date From of the new contract (TBC if we need to add 1 day)
             # Date To of the new contract is calculated by DateFrom new contract + “Duration in month of previous contract“

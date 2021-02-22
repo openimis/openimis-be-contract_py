@@ -54,6 +54,10 @@ class ContractApproveBulkInputType(OpenIMISMutation.Input):
     contract_uuids = graphene.List(graphene.UUID, required=True)
 
 
+class ContractCounterBulkInputType(OpenIMISMutation.Input):
+    contract_uuids = graphene.List(graphene.UUID, required=True)
+
+
 class ContractCounterInputType(OpenIMISMutation.Input):
     id = graphene.UUID(required=True)
 

@@ -7,8 +7,9 @@ from .mutations import ContractCreateMutationMixin, ContractUpdateMutationMixin,
 from contract.models import Contract
 from contract.gql.gql_mutations.input_types import ContractCreateInputType, ContractUpdateInputType, \
     ContractSubmitInputType, ContractApproveInputType, ContractCounterInputType, \
-    ContractApproveBulkInputType, ContractAmendInputType, ContractRenewInputType
-from contract.tasks import approve_contracts
+    ContractApproveBulkInputType, ContractAmendInputType, ContractRenewInputType, \
+    ContractCounterBulkInputType
+from contract.tasks import approve_contracts, counter_contracts
 
 
 class CreateContractMutation(ContractCreateMutationMixin, BaseMutation):
@@ -85,6 +86,29 @@ class CounterContractMutation(ContractCounterMutationMixin, BaseMutation):
     _model = Contract
 
     class Input(ContractCounterInputType):
+        pass
+
+
+class CounterContractBulkMutation(ContractCounterMutationMixin, BaseMutation):
+    _mutation_class = "CounterContractBulkMutation"
+    _mutation_module = "contract"
+    _model = Contract
+
+    @classmethod
+    def _mutate(cls, user, **data):
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        if "contract_uuids" in data:
+            cls.counter_contracts(user=user, contracts=data["contract_uuids"])
+        return None
+
+    @classmethod
+    def counter_contracts(cls, user, contracts):
+        counter_contracts.delay(user_id=f'{user.id}', contracts=contracts)
+
+    class Input(ContractCounterBulkInputType):
         pass
 
 
