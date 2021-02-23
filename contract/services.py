@@ -505,7 +505,6 @@ class ContractDetails(object):
             for phi in policy_holder_insuree:
                 # TODO add the validity condition also!
                 if phi.is_deleted == False and phi.contribution_plan_bundle:
-                    from core import datetime, datetimedelta
                     cd = ContractDetailsModel(
                         **{
                             "contract_id": contract_details["contract_id"],
@@ -671,9 +670,8 @@ class ContractContributionPlanDetails(object):
                     # rc - result of calculation
                     calculated_amount = 0
                     rc = run_calculation_rules(ccpd, "create", self.user)
-                    length_contribution = cpbd.contribution_plan.get_contribution_length()
                     if rc:
-                        calculated_amount = rc[0][1] * length_contribution if rc[0][1] not in [None, False] else 0
+                        calculated_amount = rc[0][1] if rc[0][1] not in [None, False] else 0
                         total_amount += calculated_amount
                     ccpd_record = model_to_dict(ccpd)
                     ccpd_record["calculated_amount"] = calculated_amount
@@ -744,12 +742,15 @@ class ContractContributionPlanDetails(object):
             # there is additional contribution - we have to calculate/recalculate
             total_amount = total_amount - calculated_amount
             for ccpd_result in ccpd_results:
-                length_ccpd = (ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
-                              + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month)
+                length_ccpd = float((ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
+                              + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month))
+                periodicity = float(ccpd_result.contribution_plan.periodicity)
+                # time part of splited as a fraction to count contribution value for that splited period properly
+                part_time_period = length_ccpd / periodicity
                 # rc - result calculation
                 rc = run_calculation_rules(ccpd, "update", self.user)
                 if rc:
-                    calculated_amount = rc[0][1] * length_ccpd if rc[0][1] not in [None, False] else 0
+                    calculated_amount = rc[0][1] * part_time_period if rc[0][1] not in [None, False] else 0
                     total_amount += calculated_amount
                 ccpd_record = model_to_dict(ccpd_result)
                 ccpd_record["calculated_amount"] = calculated_amount
