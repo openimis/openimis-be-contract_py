@@ -668,11 +668,12 @@ class ContractContributionPlanDetails(object):
                             "policy_id": contract_details["policy_id"],
                         }
                     )
-                    result_calculations = run_calculation_rules(ccpd, "create", self.user)
-                    from core import datetime, datetimedelta
+                    # rc - result of calculation
+                    calculated_amount = 0
+                    rc = run_calculation_rules(ccpd, "create", self.user)
                     length_contribution = cpbd.contribution_plan.get_contribution_length()
-                    if result_calculations:
-                        calculated_amount = sum([rc[1] * length_contribution if rc[1] not in [None, False] else 0 for rc in result_calculations])
+                    if rc:
+                        calculated_amount = rc[0][1] * length_contribution if rc[0][1] not in [None, False] else 0
                         total_amount += calculated_amount
                     ccpd_record = model_to_dict(ccpd)
                     ccpd_record["calculated_amount"] = calculated_amount
@@ -741,16 +742,14 @@ class ContractContributionPlanDetails(object):
         # case 2 - 2 contributions with 2 policies
         else:
             # there is additional contribution - we have to calculate/recalculate
-            # recalculate
             total_amount = total_amount - calculated_amount
             for ccpd_result in ccpd_results:
-                from core import datetime, datetimedelta
                 length_ccpd = (ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
                               + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month)
-                result_calculations = run_calculation_rules(ccpd, "update", self.user)
                 # rc - result calculation
-                if result_calculations:
-                    calculated_amount = sum([rc[1] * length_ccpd if rc[1] not in [None, False] else 0 for rc in result_calculations])
+                rc = run_calculation_rules(ccpd, "update", self.user)
+                if rc:
+                    calculated_amount = rc[0][1] * length_ccpd if rc[0][1] not in [None, False] else 0
                     total_amount += calculated_amount
                 ccpd_record = model_to_dict(ccpd_result)
                 ccpd_record["calculated_amount"] = calculated_amount
