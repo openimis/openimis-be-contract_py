@@ -16,6 +16,7 @@ from contract.signals import signal_contract, signal_contract_approve
 from contract.models import Contract as ContractModel, \
     ContractDetails as ContractDetailsModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
+from calculation.services import run_calculation_rules
 
 from policyholder.models import PolicyHolderInsuree
 from contribution.models import Premium, Payer
@@ -221,6 +222,7 @@ class Contract(object):
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
                 "policy_id": policy_id,
+                "json_ext": cd['json_ext'],
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id'],
                 "amendment": amendment
@@ -516,6 +518,7 @@ class ContractDetails(object):
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
                     dict_representation["policy_id"] = phi.last_policy.id if phi.last_policy else None
                     dict_representation["amendment"] = contract_details["amendment"]
+                    dict_representation["contract_date_valid_from"] = cd.contract.date_valid_from
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
             return _output_exception(model_name="ContractDetails", method="updateFromPHInsuree", exception=exc)
@@ -652,37 +655,39 @@ class ContractContributionPlanDetails(object):
             total_amount = 0
             amendment = 0
             for contract_details in contract_contribution_plan_details["contract_details"]:
-                cpbd = ContributionPlanBundleDetails.objects.filter(
+                cpbd_list = ContributionPlanBundleDetails.objects.filter(
                     contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
-                )[0]
-                amendment = contract_details["amendment"]
-                ccpd = ContractContributionPlanDetailsModel(
-                    **{
-                        "contract_details_id": contract_details["id"],
-                        "contribution_plan_id": f"{cpbd.contribution_plan.id}",
-                        "policy_id": contract_details["policy_id"],
-                    }
                 )
-                # TODO here will be a function from calculation module
-                #  to count the value for amount. And now temporary value is here
-                #  until calculation module be developed
-                calculated_amount = 250
-                total_amount += calculated_amount
-                ccpd_record = model_to_dict(ccpd)
-                ccpd_record["calculated_amount"] = calculated_amount
-                if contract_contribution_plan_details["save"]:
-                    ccpd_list, total_amount, ccpd_record = self.__append_contract_cpd_to_list(
-                        ccpd=ccpd,
-                        cp=cpbd.contribution_plan,
-                        date_valid_from=contract_details["contract_date_valid_from"],
-                        insuree_id=contract_details["insuree_id"],
-                        total_amount=total_amount,
-                        calculated_amount=calculated_amount,
-                        ccpd_list=ccpd_list,
-                        ccpd_record=ccpd_record
+                amendment = contract_details["amendment"]
+                for cpbd in cpbd_list:
+                    ccpd = ContractContributionPlanDetailsModel(
+                        **{
+                            "contract_details_id": contract_details["id"],
+                            "contribution_plan_id": f"{cpbd.contribution_plan.id}",
+                            "policy_id": contract_details["policy_id"],
+                        }
                     )
-                if "id" not in ccpd_record:
-                    ccpd_list.append(ccpd_record)
+                    # rc - result of calculation
+                    calculated_amount = 0
+                    rc = run_calculation_rules(ccpd, "create", self.user)
+                    if rc:
+                        calculated_amount = rc[0][1] if rc[0][1] not in [None, False] else 0
+                        total_amount += calculated_amount
+                    ccpd_record = model_to_dict(ccpd)
+                    ccpd_record["calculated_amount"] = calculated_amount
+                    if contract_contribution_plan_details["save"]:
+                        ccpd_list, total_amount, ccpd_record = self.__append_contract_cpd_to_list(
+                            ccpd=ccpd,
+                            cp=cpbd.contribution_plan,
+                            date_valid_from=contract_details["contract_date_valid_from"],
+                            insuree_id=contract_details["insuree_id"],
+                            total_amount=total_amount,
+                            calculated_amount=calculated_amount,
+                            ccpd_list=ccpd_list,
+                            ccpd_record=ccpd_record
+                        )
+                    if "id" not in ccpd_record:
+                        ccpd_list.append(ccpd_record)
             if amendment > 0:
                 # get the payment from the previous version of the contract
                 contract_detail_id = contract_contribution_plan_details["contract_details"][0]["id"]
@@ -735,14 +740,18 @@ class ContractContributionPlanDetails(object):
         # case 2 - 2 contributions with 2 policies
         else:
             # there is additional contribution - we have to calculate/recalculate
-            # recalculate
             total_amount = total_amount - calculated_amount
             for ccpd_result in ccpd_results:
-                # TODO here will be a function from calculation module
-                #  to count the value for amount. And now temporary value is here
-                #  until calculation module be developed
-                calculated_amount = 250
-                total_amount += calculated_amount
+                length_ccpd = float((ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
+                              + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month))
+                periodicity = float(ccpd_result.contribution_plan.periodicity)
+                # time part of splited as a fraction to count contribution value for that splited period properly
+                part_time_period = length_ccpd / periodicity
+                # rc - result calculation
+                rc = run_calculation_rules(ccpd, "update", self.user)
+                if rc:
+                    calculated_amount = rc[0][1] * part_time_period if rc[0][1] not in [None, False] else 0
+                    total_amount += calculated_amount
                 ccpd_record = model_to_dict(ccpd_result)
                 ccpd_record["calculated_amount"] = calculated_amount
                 uuid_string = f"{ccpd_result.id}"
