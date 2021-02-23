@@ -222,7 +222,7 @@ class Contract(object):
                 "id": f"{cd['id']}",
                 "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
                 "policy_id": policy_id,
-                "json_ext": f"{cd['json_ext']}",
+                "json_ext": cd['json_ext'],
                 "contract_date_valid_from": contract_date_valid_from,
                 "insuree_id": cd['insuree_id'],
                 "amendment": amendment
