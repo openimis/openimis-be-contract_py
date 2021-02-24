@@ -122,7 +122,7 @@ class Contract(object):
                     )
                 )
             # approvable scenario
-            if self.__check_rights_by_status(updated_contract) == "approvable":
+            if self.__check_rights_by_status(updated_contract.state) == "approvable":
                 # in “Negotiable” changes are possible only with the authority “Approve/ask for change”
                 if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
                     raise PermissionError("Unauthorized")
@@ -132,7 +132,7 @@ class Contract(object):
                         updated_contract=updated_contract
                     )
                 )
-            if self.__check_rights_by_status(updated_contract) == "cannot_update":
+            if self.__check_rights_by_status(updated_contract.state) == "cannot_update":
                 raise ContractUpdateError("In that state you cannot update!")
         except Exception as exc:
             return _output_exception(model_name="Contract", method="update", exception=exc)
