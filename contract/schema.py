@@ -85,7 +85,7 @@ class Query(graphene.ObjectType):
 
         if contribution_plan_bundle:
             query = query.filter(
-                contributionplanbundledetails__contribution_plan_bundle__id=contribution_plan_bundle
+                contract_details__contribution_plan_bundle__id=contribution_plan_bundle
             )
 
         return gql_optimizer.query(query.all(), info)
