@@ -18,7 +18,7 @@ from graphene import Schema
 from graphene.test import Client
 
 
-class MutationTestCreate(TestCase):
+class MutationTestContract(TestCase):
 
     class BaseTestContext:
         user = User.objects.get(username="admin")
@@ -28,13 +28,64 @@ class MutationTestCreate(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # some test data so as to created contract properly
+        cls.income = 500
+        cls.rate = 5
+        cls.number_of_insuree = 2
+        cls.policy_holder = create_test_policy_holder()
+        cls.policy_holder2 = create_test_policy_holder()
+        # create contribution plans etc
+        cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
+        cls.contribution_plan = create_test_contribution_plan(
+            custom_props={"json_ext": '{"rate": "' + str(cls.rate) + '"}'}
+        )
+        cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=cls.contribution_plan,
+            contribution_plan_bundle=cls.contribution_plan_bundle
+        )
+        from core import datetime
+        # create policy holder insuree for that test policy holder
+        for i in range(0, cls.number_of_insuree):
+            ph_insuree = create_test_policy_holder_insuree(
+                policy_holder=cls.policy_holder,
+                contribution_plan_bundle=cls.contribution_plan_bundle,
+                custom_props={
+                    "last_policy": None,
+                    "json_ext": '{"income": "' + str(cls.income) + '"}'
+                }
+            )
+            create_test_policy(
+                cls.contribution_plan.benefit_plan,
+                ph_insuree.insuree,
+                custom_props={
+                    "start_date": datetime.datetime(2016, 3, 1),
+                    "expiry_date": datetime.datetime(2021, 7, 1)
+                }
+            )
+
+        cls.policy_holder_insuree = create_test_policy_holder_insuree(
+            policy_holder=cls.policy_holder,
+            contribution_plan_bundle=cls.contribution_plan_bundle
+        )
+        cls.policy_holder_insuree2 = create_test_policy_holder_insuree(
+            policy_holder=cls.policy_holder,
+            contribution_plan_bundle=cls.contribution_plan_bundle
+        )
 
         cls.schema = Schema(
             query=contract_schema.Query,
             mutation=contract_schema.Mutation
         )
-
         cls.graph_client = Client(cls.schema)
+
+    @classmethod
+    def tearDownClass(cls):
+        # tear down the test data created during set up
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(cls.policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=cls.policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=cls.contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=cls.contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=cls.contribution_plan.id).delete()
 
     def test_mutation_contract_create_without_policy_holder(self):
         time_stamp = datetime.datetime.now()
@@ -60,25 +111,10 @@ class MutationTestCreate(TestCase):
         )
 
     def test_mutation_contract_create_with_policy_holder(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 3):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
         time_stamp = datetime.datetime.now()
         input_param = {
             "code": "XYZ:"+str(time_stamp),
-            "policyHolderId": str(policy_holder.id)
+            "policyHolderId": str(self.policy_holder.id)
         }
         self.add_mutation("createContract", input_param)
         result = self.find_by_exact_attributes_query(
@@ -89,11 +125,6 @@ class MutationTestCreate(TestCase):
         # tear down the test data
         ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
         Contract.objects.filter(id=str(converted_id)).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
             (
@@ -106,25 +137,10 @@ class MutationTestCreate(TestCase):
         )
 
     def test_mutation_contract_create_details_and_update_delete(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 2):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
         time_stamp = datetime.datetime.now()
         input_param = {
             "code": "CT:"+str(time_stamp),
-            "policyHolderId": str(policy_holder.id)
+            "policyHolderId": str(self.policy_holder.id)
         }
         self.add_mutation("createContract", input_param)
         result = self.find_by_exact_attributes_query(
@@ -133,15 +149,10 @@ class MutationTestCreate(TestCase):
         )["edges"]
         converted_id_contract = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
 
-        # scneario to create contract detail
-        policy_holder_insuree = create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                                                   contribution_plan_bundle=contribution_plan_bundle)
-        policy_holder_insuree2 = create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                                                   contribution_plan_bundle=contribution_plan_bundle)
         input_param = {
             "contractId": str(converted_id_contract),
-            "insureeId": policy_holder_insuree.insuree.id,
-            "contributionPlanBundleId": str(contribution_plan_bundle_details.id),
+            "insureeId": self.policy_holder_insuree.insuree.id,
+            "contributionPlanBundleId": str(self.contribution_plan_bundle_details.id),
         }
         self.add_mutation("createContractDetails", input_param)
         result = self.find_by_exact_attributes_query(
@@ -153,7 +164,7 @@ class MutationTestCreate(TestCase):
         #in update contract detail test the scenario is to change insuree
         input_param = {
             "id": str(converted_id),
-            "insureeId": policy_holder_insuree2.insuree.id,
+            "insureeId": self.policy_holder_insuree2.insuree.id,
         }
         self.add_mutation("updateContractDetails", input_param)
         result = self.find_by_exact_attributes_query(
@@ -176,11 +187,6 @@ class MutationTestCreate(TestCase):
         # tear down the test data
         ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
         Contract.objects.filter(id=str(converted_id_contract)).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
             (2, 3),
