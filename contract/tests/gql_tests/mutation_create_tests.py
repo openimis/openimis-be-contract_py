@@ -160,18 +160,6 @@ class MutationTestContract(TestCase):
             params=input_param,
         )["edges"]
         converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-
-        #in update contract detail test the scenario is to change insuree
-        input_param = {
-            "id": str(converted_id),
-            "insureeId": self.policy_holder_insuree2.insuree.id,
-        }
-        self.add_mutation("updateContractDetails", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contractDetails",
-            params=input_param,
-        )["edges"]
-        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
         version_after_update = result[0]['node']['version']
 
         # delete contractDetails mutation test
@@ -189,7 +177,7 @@ class MutationTestContract(TestCase):
         Contract.objects.filter(id=str(converted_id_contract)).delete()
 
         self.assertEqual(
-            (2, 3),
+            (1, 2),
             (version_after_update, result[0]['node']['version'])
         )
 
