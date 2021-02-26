@@ -31,6 +31,7 @@ setup(
         'openimis-be-contribution',
         'openimis-be-insuree',
         'openimis-be-policy',
+        'openimis-be-calculation',
     ],
     classifiers=[
         'Environment :: Web Environment',
