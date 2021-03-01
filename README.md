@@ -86,3 +86,4 @@ Another payments are omitted in processing.
 - payment.models.Payment
 - payment.models.PaymentDetail
 - policy.models.Policy
+- calculation module

@@ -1,22 +1,19 @@
-import json
-
 from unittest import TestCase
 from contract.services import Contract as ContractService, ContractDetails as ContractDetailsService, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsService
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
 from policyholder.tests.helpers import create_test_policy_holder, create_test_policy_holder_insuree
-from contribution.models import Premium
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
 from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
-from policy.models import Policy
 from policy.test_helpers import create_test_policy
 from core.models import User
-from payment.models import Payment, PaymentDetail
+from calculation.services import get_parameters, get_rule_details, \
+    run_calculation_rules, get_rule_name, get_linked_class
 
 
-class ServiceTestPolicyHolder(TestCase):
+class ServiceTestContract(TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -24,6 +21,49 @@ class ServiceTestPolicyHolder(TestCase):
         cls.contract_service = ContractService(cls.user)
         cls.contract_details_service = ContractDetailsService(cls.user)
         cls.contract_contribution_plan_details_service = ContractContributionPlanDetailsService(cls.user)
+        # some test data so as to created contract properly
+        cls.income = 500
+        cls.rate = 5
+        cls.number_of_insuree = 5
+        cls.policy_holder = create_test_policy_holder()
+        cls.policy_holder2 = create_test_policy_holder()
+        # create contribution plans etc
+        cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
+        cls.contribution_plan = create_test_contribution_plan(
+            custom_props={"json_ext": '{"rate": "' + str(cls.rate) + '"}'}
+        )
+        cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=cls.contribution_plan,
+            contribution_plan_bundle=cls.contribution_plan_bundle
+        )
+        from core import datetime
+        # create policy holder insuree for that test policy holder
+        for i in range(0, cls.number_of_insuree):
+            ph_insuree = create_test_policy_holder_insuree(
+                policy_holder=cls.policy_holder,
+                contribution_plan_bundle=cls.contribution_plan_bundle,
+                custom_props={
+                    "last_policy": None,
+                    "json_ext": '{"income": "' + str(cls.income) + '"}'
+                }
+            )
+            create_test_policy(
+                cls.contribution_plan.benefit_plan,
+                ph_insuree.insuree,
+                custom_props={
+                    "start_date": datetime.datetime(2016, 3, 1),
+                    "expiry_date": datetime.datetime(2021, 7, 1)
+                }
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        # tear down the test data created during set up
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(cls.policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=cls.policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=cls.contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=cls.contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=cls.contribution_plan.id).delete()
 
     def test_contract_create_without_policy_holder(self):
         contract = {
@@ -52,38 +92,20 @@ class ServiceTestPolicyHolder(TestCase):
         )
 
     def test_contract_create_with_policy_holder(self):
-        # create policy holder for test
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle)
-
-        # create policy holder insuree
-        for i in range(0, 5):
-            create_test_policy_holder_insuree(policy_holder=policy_holder, contribution_plan_bundle=contribution_plan_bundle)
-
         contract = {
-            'code': 'CSCSD52',
-            'policy_holder_id': policy_holder.id
+            'code': 'TESTONE',
+            'policy_holder_id': self.policy_holder.id
         }
         response = self.contract_service.create(contract)
         # tear down the test data
         ContractDetails.objects.filter(contract_id=response["data"]["id"]).delete()
         Contract.objects.filter(id=response["data"]["id"]).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
         self.assertEqual(
             (
                  True,
                  "Ok",
                  "",
-                 "CSCSD52",
+                 "TESTONE",
                  0,
             ),
             (
@@ -94,37 +116,21 @@ class ServiceTestPolicyHolder(TestCase):
                  response['data']['amendment'],
             )
         )
-    
+
     def test_contract_create_update_delete_with_policy_holder(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 3):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
         contract = {
             "code": "CTSV",
-            "policy_holder_id": str(policy_holder.id)
+            "policy_holder_id": str(self.policy_holder.id)
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
-        expected_amount_notified = response["data"]["amount_notified"] + 400.50
 
         contract = {
             "id": contract_id,
-            "amount_notified": expected_amount_notified,
+            "payment_reference": "payment_one xxxxxxxx",
         }
         response = self.contract_service.update(contract)
-        updated_amount_notified = response['data']['amount_notified']
+        updated_payment_reference = response['data']['payment_reference']
 
         contract = {
             "id": contract_id,
@@ -135,44 +141,23 @@ class ServiceTestPolicyHolder(TestCase):
         # tear down the test data
         ContractDetails.objects.filter(contract_id=contract_id).delete()
         Contract.objects.filter(id=contract_id).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
-            (expected_amount_notified, True),
-            (updated_amount_notified, is_deleted)
+            ("payment_one xxxxxxxx", True),
+            (updated_payment_reference, is_deleted)
         )
 
     def test_contract_create_update_failed_ph(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-        policy_holder2 = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 1):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
         contract = {
             "code": "CSTG",
-            "policy_holder_id": str(policy_holder.id)
+            "policy_holder_id": str(self.policy_holder.id)
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
 
         contract = {
             "id": contract_id,
-            "policy_holder_id": str(policy_holder2.id),
+            "policy_holder_id": str(self.policy_holder2.id),
         }
         response = self.contract_service.update(contract)
         failed = response['detail']
@@ -180,36 +165,15 @@ class ServiceTestPolicyHolder(TestCase):
         # tear down the test data
         ContractDetails.objects.filter(contract_id=contract_id).delete()
         Contract.objects.filter(id=contract_id).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        PolicyHolder.objects.filter(id=policy_holder2.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
             "ContractUpdateError: You cannot update already set PolicyHolder in Contract!", failed,
         )
 
     def test_contract_create_submit_fail_scenarios(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 3):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
         contract = {
             "code": "MTD",
-            "policy_holder_id": str(policy_holder.id)
+            "policy_holder_id": str(self.policy_holder.id)
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -244,11 +208,6 @@ class ServiceTestPolicyHolder(TestCase):
         list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id', 'json_ext'))
         ContractDetails.objects.filter(contract_id=contract_id).delete()
         Contract.objects.filter(id=contract_id).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
             (
@@ -264,24 +223,9 @@ class ServiceTestPolicyHolder(TestCase):
         )
 
     def test_contract_create_submit_counter(self):
-        # create contract for contract with policy holder with two phinsuree
-        policy_holder = create_test_policy_holder()
-
-        # create contribution plan etc
-        contribution_plan_bundle = create_test_contribution_plan_bundle()
-        contribution_plan = create_test_contribution_plan()
-        contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
-            contribution_plan=contribution_plan, contribution_plan_bundle=contribution_plan_bundle
-        )
-
-        # create policy holder insuree
-        for i in range(0, 3):
-            create_test_policy_holder_insuree(policy_holder=policy_holder,
-                                              contribution_plan_bundle=contribution_plan_bundle)
-
         contract = {
             "code": "SUR",
-            "policy_holder_id": str(policy_holder.id)
+            "policy_holder_id": str(self.policy_holder.id)
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -295,17 +239,175 @@ class ServiceTestPolicyHolder(TestCase):
         expected_state = 11
 
         # tear down the test data
-        list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id', 'json_ext'))
+        list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id'))
         for cd in list_cd:
             ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
         ContractDetails.objects.filter(contract_id=contract_id).delete()
         Contract.objects.filter(id=contract_id).delete()
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=contribution_plan.id).delete()
 
         self.assertEqual(
             expected_state, result_state
+        )
+
+    def test_contract_create_submit_approve_amend(self):
+        from core import datetime
+        contract = {
+            "code": "TESTCON",
+            "policy_holder_id": str(self.policy_holder.id),
+            "date_valid_from": datetime.datetime(2021, 1, 1),
+            "date_valid_to": datetime.datetime(2023, 6, 30),
+        }
+        response = self.contract_service.create(contract)
+        contract_id = str(response["data"]["id"])
+        contract = {"id": contract_id,}
+        self.contract_service.submit(contract)
+        self.contract_service.approve(contract)
+        self.contract_service.approve(contract)
+        response = self.contract_service.amend(
+            {
+                "id": contract_id,
+                "date_valid_to": datetime.datetime(2024, 6, 30),
+            }
+        )
+        expected_state = 2
+        result_state = response["data"]["state"]
+        new_id = response["data"]["id"]
+        # tear down the test data
+        list_cd = list(ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).values('id'))
+        for cd in list_cd:
+            ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
+        ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).delete()
+        Contract.objects.filter(id__in=(contract_id, new_id)).delete()
+        self.assertEqual(
+            expected_state, result_state
+        )
+
+    def test_contract_create_cd_from_phi(self):
+        from core import datetime
+        ph_insuree2 = create_test_policy_holder_insuree(
+            policy_holder=self.policy_holder,
+            contribution_plan_bundle=self.contribution_plan_bundle
+        )
+        contract = {
+            "code": "MTEST-1",
+            "policy_holder_id": str(self.policy_holder.id),
+            "date_valid_from": datetime.datetime(2021, 1, 1),
+            "date_valid_to": datetime.datetime(2023, 6, 30),
+        }
+        response = self.contract_service.create(contract)
+        contract_id = str(response["data"]["id"])
+        contract = {"id": contract_id,}
+        ph_insuree_input = {"id": f'{ph_insuree2.id}',}
+        response = self.contract_details_service.ph_insuree_to_contract_details(
+            contract=contract,
+            ph_insuree=ph_insuree_input
+        )
+        # tear down the test data
+        ContractDetails.objects.filter(contract_id=contract_id).delete()
+        Contract.objects.filter(id=contract_id).delete()
+
+        self.assertEqual(
+            True, response["success"]
+        )
+
+
+class CalculationContractTest(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.user = User.objects.get(username="admin")
+        cls.contract_service = ContractService(cls.user)
+        cls.income = 500
+        cls.rate = 5
+        cls.number_of_insuree = 5
+        cls.policy_holder = create_test_policy_holder()
+        # create contribution plans etc
+        cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
+        cls.contribution_plan = create_test_contribution_plan(
+            custom_props={"json_ext": '{"rate": "' + str(cls.rate) + '"}'}
+        )
+        cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=cls.contribution_plan,
+            contribution_plan_bundle=cls.contribution_plan_bundle
+        )
+
+        # create policy holder insuree for that test policy holder
+        for i in range(0, cls.number_of_insuree):
+            create_test_policy_holder_insuree(
+                policy_holder=cls.policy_holder,
+                contribution_plan_bundle=cls.contribution_plan_bundle,
+                custom_props={"last_policy": None, "json_ext": '{"income": "' + str(cls.income) + '"}'}
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        # tear down the test data created during set up
+        PolicyHolderInsuree.objects.filter(policy_holder_id=str(cls.policy_holder.id)).delete()
+        PolicyHolder.objects.filter(id=cls.policy_holder.id).delete()
+        ContributionPlanBundleDetails.objects.filter(id=cls.contribution_plan_bundle_details.id).delete()
+        ContributionPlanBundle.objects.filter(id=cls.contribution_plan_bundle.id).delete()
+        ContributionPlan.objects.filter(id=cls.contribution_plan.id).delete()
+
+    def test_get_rule_name(self):
+        class_name = "ContractDetails"
+        result = get_rule_name(class_name=class_name)
+        self.assertEqual("ContributionValuationRule", result[0][1].__name__)
+
+    def test_get_rule_not_existing(self):
+        class_name = "xxxxxxxxxxxxxxxxxxx"
+        result = get_rule_name(class_name=class_name)
+        self.assertEqual(None, result[0][1])
+
+    def test_get_rule_details(self):
+        class_name = "PolicyHolderInsuree"
+        class_name2 = "ContributionPlan"
+        result = get_rule_details(class_name=class_name)[0][1]
+        result2 = get_rule_details(class_name=class_name2)[0][1]
+        result_param = [param["name"] for param in result["parameters"]]
+        result2_param = [param["name"] for param in result2["parameters"]]
+        self.assertEqual(
+            (class_name, class_name2, ["income"], ["rate"]),
+            (result["class"], result2["class"], result_param, result2_param)
+        )
+
+    def test_get_rule_details_not_existing(self):
+        class_name = "xxxxxxxxxxxxxxx"
+        result = get_rule_details(class_name=class_name)
+        self.assertEqual(None, result[0][1])
+
+    def test_get_linked_class_empty(self):
+        result = get_linked_class()
+        self.assertEqual(['Calculation'], result[0][1])
+
+    def test_get_linked_class(self):
+        result = get_linked_class(["PolicyHolderInsuree"])
+        self.assertEqual(['PolicyHolder', 'Insuree', 'ContributionPlanBundle', 'Policy'], result[0][1])
+
+    def test_get_param_and_amount_calculation(self):
+        # create contract to test 1st calculation rule contribution valuation
+        # test case - create contract and check if amount is calcutated properly
+        # and test if on instance of contract details the proper params is showed
+        # by getting param name
+        contract = {
+            'code': 'CALTEST',
+            'policy_holder_id': self.policy_holder.id
+        }
+
+        response = self.contract_service.create(contract)
+        # after creating contract - we can get contract details so as to get params
+        # run calculation rules etc
+        cd = ContractDetails.objects.filter(contract__id=response["data"]["id"]).first()
+        result_params = get_parameters("PolicyHolderInsuree", cd)
+
+        # tear down the contract test data
+        ContractDetails.objects.filter(contract_id=response["data"]["id"]).delete()
+        Contract.objects.filter(id=response["data"]["id"]).delete()
+
+        # we want to assert name of param related to the contract details (should be 'income')
+        # and also the value of contract (all contributions)
+        # for that test should be income=500, 5 insurees, default rate=5 %
+        # income*rate*number of contributions = according to Contribution Valuation Rule
+        self.assertEqual(
+            ("income", self.income * (float(self.rate / 100)) * self.number_of_insuree),
+            (result_params[0][1][0]["name"], response["data"]["amount_notified"])
         )
