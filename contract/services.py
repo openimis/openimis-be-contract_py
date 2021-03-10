@@ -1,5 +1,6 @@
 import json
 import uuid
+import traceback
 
 from copy import copy
 from .config import get_message_counter_contract
@@ -855,7 +856,7 @@ def _output_exception(model_name, method, exception):
     return {
         "success": False,
         "message": f"Failed to {method} {model_name}",
-        "detail": f"{exception}",
+        "detail": f"{exception} - {traceback.format_exc()}",
         "data": "",
     }
 
