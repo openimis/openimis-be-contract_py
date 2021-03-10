@@ -708,6 +708,7 @@ class ContractContributionPlanDetails(object):
             dict_representation['contribution_plan_details'] = ccpd_list
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
+            print(traceback.format_exc())
             return _output_exception(
                 model_name="ContractContributionPlanDetails",
                 method="contractValuation",
