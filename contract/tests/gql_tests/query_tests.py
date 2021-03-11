@@ -1,7 +1,8 @@
 import datetime
 import numbers
 import base64
-from unittest import TestCase, mock
+from unittest import mock
+from django.test import TestCase
 from uuid import UUID
 
 import graphene

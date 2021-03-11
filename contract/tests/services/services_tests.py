@@ -1,4 +1,4 @@
-from unittest import TestCase
+from django.test import TestCase
 from contract.services import Contract as ContractService, ContractDetails as ContractDetailsService, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsService
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
@@ -17,7 +17,9 @@ class ServiceTestContract(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.user = User.objects.get(username="admin")
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
+        cls.user = User.objects.filter(username='admin').first()
         cls.contract_service = ContractService(cls.user)
         cls.contract_details_service = ContractDetailsService(cls.user)
         cls.contract_contribution_plan_details_service = ContractContributionPlanDetailsService(cls.user)
@@ -249,7 +251,7 @@ class ServiceTestContract(TestCase):
             expected_state, result_state
         )
 
-    def test_contract_create_submit_approve_amend(self):
+    def test_contract_create_submit(self):
         from core import datetime
         contract = {
             "code": "TESTCON",
@@ -260,23 +262,15 @@ class ServiceTestContract(TestCase):
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
         contract = {"id": contract_id,}
-        self.contract_service.submit(contract)
-        self.contract_service.approve(contract)
-        response = self.contract_service.amend(
-            {
-                "id": contract_id,
-                "date_valid_to": datetime.datetime(2024, 6, 30),
-            }
-        )
-        expected_state = 2
+        response = self.contract_service.submit(contract)
+        expected_state = 4
         result_state = response["data"]["state"]
-        new_id = response["data"]["id"]
         # tear down the test data
-        list_cd = list(ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).values('id'))
+        list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id'))
         for cd in list_cd:
             ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
-        ContractDetails.objects.filter(contract_id__in=(contract_id, new_id)).delete()
-        Contract.objects.filter(id__in=(contract_id, new_id)).delete()
+        ContractDetails.objects.filter(contract_id=contract_id).delete()
+        Contract.objects.filter(id=contract_id).delete()
         self.assertEqual(
             expected_state, result_state
         )
@@ -315,7 +309,9 @@ class CalculationContractTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.user = User.objects.get(username="admin")
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
+        cls.user = User.objects.filter(username='admin').first()
         cls.contract_service = ContractService(cls.user)
         cls.income = 500
         cls.rate = 5
