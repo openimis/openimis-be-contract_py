@@ -105,5 +105,7 @@ def create_test_contract_contribution_plan_details(contribution_plan=None, polic
 
 
 def __get_or_create_simple_contract_user():
-    user = User.objects.get(username="admin")
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
+    user = User.objects.filter(username='admin').first()
     return user

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from unittest import TestCase
+from django.test import TestCase
 
 from .helpers import *
 from ..models import ContractContributionPlanDetails

@@ -1,7 +1,8 @@
 import datetime
 import numbers
 import base64
-from unittest import TestCase, mock
+from unittest import mock
+from django.test import TestCase
 from uuid import UUID
 
 import graphene
@@ -12,7 +13,6 @@ from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
 from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
-from payment.models import Payment, PaymentDetail
 from contract import schema as contract_schema
 from graphene import Schema
 from graphene.test import Client
@@ -21,13 +21,17 @@ from graphene.test import Client
 class MutationTestContract(TestCase):
 
     class BaseTestContext:
-        user = User.objects.get(username="admin")
+        def __init__(self, user):
+            self.user = user
 
     class AnonymousUserContext:
         user = mock.Mock(is_anonymous=True)
 
     @classmethod
     def setUpClass(cls):
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
+        cls.user = User.objects.filter(username='admin').first()
         # some test data so as to created contract properly
         cls.income = 500
         cls.rate = 5
@@ -136,51 +140,6 @@ class MutationTestContract(TestCase):
             )
         )
 
-    def test_mutation_contract_create_details_and_update_delete(self):
-        time_stamp = datetime.datetime.now()
-        input_param = {
-            "code": "CT:"+str(time_stamp),
-            "policyHolderId": str(self.policy_holder.id)
-        }
-        self.add_mutation("createContract", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params=input_param,
-        )["edges"]
-        converted_id_contract = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-
-        input_param = {
-            "contractId": str(converted_id_contract),
-            "insureeId": self.policy_holder_insuree.insuree.id,
-            "contributionPlanBundleId": str(self.contribution_plan_bundle_details.id),
-        }
-        self.add_mutation("createContractDetails", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contractDetails",
-            params=input_param,
-        )["edges"]
-        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-        version_after_update = result[0]['node']['version']
-
-        # delete contractDetails mutation test
-        input_param = {
-            "uuids": [str(converted_id)],
-        }
-        self.add_mutation("deleteContractDetails", input_param)
-        result = self.find_by_exact_attributes_query(
-            "contractDetails",
-            params=input_param,
-        )["edges"]
-
-        # tear down the test data
-        ContractDetails.objects.filter(contract_id=str(converted_id_contract)).delete()
-        Contract.objects.filter(id=str(converted_id_contract)).delete()
-
-        self.assertEqual(
-            (1, 2),
-            (version_after_update, result[0]['node']['version'])
-        )
-
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
         {{
@@ -246,7 +205,7 @@ class MutationTestContract(TestCase):
 
     def execute_query(self, query, context=None):
         if context is None:
-            context = self.BaseTestContext()
+            context = self.BaseTestContext(self.user)
 
         query_result = self.graph_client.execute(query, context=context)
         query_data = query_result['data']
@@ -271,7 +230,7 @@ class MutationTestContract(TestCase):
 
     def execute_mutation(self, mutation, context=None):
         if context is None:
-            context = self.BaseTestContext()
+            context = self.BaseTestContext(self.user)
 
         mutation_result = self.graph_client.execute(mutation, context=context)
         return mutation_result
