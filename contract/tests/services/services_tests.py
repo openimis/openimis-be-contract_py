@@ -30,7 +30,7 @@ class ServiceTestContract(TestCase):
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": '{"rate": "' + str(cls.rate) + '"}'}
+            custom_props={"json_ext": '{"calculation_rule":{"rate": "' + str(cls.rate) + '"}}'}
         )
         cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
             contribution_plan=cls.contribution_plan,
@@ -44,7 +44,7 @@ class ServiceTestContract(TestCase):
                 contribution_plan_bundle=cls.contribution_plan_bundle,
                 custom_props={
                     "last_policy": None,
-                    "json_ext": '{"income": "' + str(cls.income) + '"}'
+                    "json_ext": '{"calculation_rule":{"income": "' + str(cls.income) + '"}}'
                 }
             )
             create_test_policy(
@@ -262,7 +262,6 @@ class ServiceTestContract(TestCase):
         contract = {"id": contract_id,}
         self.contract_service.submit(contract)
         self.contract_service.approve(contract)
-        self.contract_service.approve(contract)
         response = self.contract_service.amend(
             {
                 "id": contract_id,
@@ -286,7 +285,8 @@ class ServiceTestContract(TestCase):
         from core import datetime
         ph_insuree2 = create_test_policy_holder_insuree(
             policy_holder=self.policy_holder,
-            contribution_plan_bundle=self.contribution_plan_bundle
+            contribution_plan_bundle=self.contribution_plan_bundle,
+            custom_props={"last_policy": None, "json_ext": '{"calculation_rule":{"income": "400"}}'}
         )
         contract = {
             "code": "MTEST-1",
@@ -324,7 +324,7 @@ class CalculationContractTest(TestCase):
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": '{"rate": "' + str(cls.rate) + '"}'}
+            custom_props={"json_ext": '{"calculation_rule":{"rate": "' + str(cls.rate) + '"}}'}
         )
         cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
             contribution_plan=cls.contribution_plan,
@@ -336,7 +336,7 @@ class CalculationContractTest(TestCase):
             create_test_policy_holder_insuree(
                 policy_holder=cls.policy_holder,
                 contribution_plan_bundle=cls.contribution_plan_bundle,
-                custom_props={"last_policy": None, "json_ext": '{"income": "' + str(cls.income) + '"}'}
+                custom_props={"last_policy": None, "json_ext": '{"calculation_rule":{"income": "' + str(cls.income) + '"}}'}
             )
 
     @classmethod
