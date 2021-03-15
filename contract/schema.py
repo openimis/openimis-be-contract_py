@@ -17,6 +17,7 @@ from contract.gql.gql_mutations.contract_details_mutations import CreateContract
     UpdateContractDetailsMutation, DeleteContractDetailsMutation, \
     CreateContractDetailByPolicyHolderInsureeMutation
 from contract.apps import ContractConfig
+from contract.utils import filter_amount_contract
 
 
 class Query(graphene.ObjectType):
@@ -27,7 +28,9 @@ class Query(graphene.ObjectType):
         insuree=graphene.UUID(),
         orderBy=graphene.List(of_type=graphene.String),
         dateValidFrom__Gte=graphene.DateTime(),
-        dateValidTo__Lte=graphene.DateTime()
+        dateValidTo__Lte=graphene.DateTime(),
+        amount_from=graphene.Decimal(),
+        amount_to=graphene.Decimal()
     )
 
     contract_details = OrderedDjangoFilterConnectionField(
@@ -56,6 +59,11 @@ class Query(graphene.ObjectType):
         if insuree:
             filters.append(Q(contractdetails__insuree__uuid=insuree))
 
+        # amount filters
+        amount_from = kwargs.get('amount_from', None)
+        amount_to = kwargs.get('amount_to', None)
+        if amount_from or amount_to:
+            filters.append(filter_amount_contract(**kwargs))
         return gql_optimizer.query(Contract.objects.filter(*filters).all(), info)
 
     def resolve_contract_details(self, info, **kwargs):
