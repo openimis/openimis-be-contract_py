@@ -36,6 +36,19 @@ class Contract(core_models.HistoryBusinessModel):
 
     objects = ContractManager()
 
+    @property
+    def amount(self):
+        amount = 0
+        if self.state in [1, 2]:
+            amount = self.amount_notified
+        elif self.state in [4, 11, 3]:
+            amount = self.amount_rectified
+        elif self.state in [5, 6, 7, 8, 9, 10]:
+            amount = self.amount_due
+        else:
+            amount = self.amount_due
+        return amount
+
     @classmethod
     def get_queryset(cls, queryset, user):
         queryset = cls.filter_queryset(queryset)
