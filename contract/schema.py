@@ -3,7 +3,7 @@ import graphene_django_optimizer as gql_optimizer
 
 from django.db.models import Q
 from core.schema import signal_mutation_module_before_mutating, OrderedDjangoFilterConnectionField
-from core.utils import filter_validity_business_model
+from core.utils import append_validity_filter
 from contract.models import Contract, ContractDetails, \
     ContractContributionPlanDetails, ContractMutation
 from contract.gql.gql_types import ContractGQLType, ContractDetailsGQLType, \
@@ -30,13 +30,15 @@ class Query(graphene.ObjectType):
         dateValidFrom__Gte=graphene.DateTime(),
         dateValidTo__Lte=graphene.DateTime(),
         amount_from=graphene.Decimal(),
-        amount_to=graphene.Decimal()
+        amount_to=graphene.Decimal(),
+        applyDefaultValidityFilter=graphene.Boolean()
     )
 
     contract_details = OrderedDjangoFilterConnectionField(
         ContractDetailsGQLType,
         client_mutation_id=graphene.String(),
         orderBy=graphene.List(of_type=graphene.String),
+        applyDefaultValidityFilter=graphene.Boolean()
     )
 
     contract_contribution_plan_details = OrderedDjangoFilterConnectionField(
@@ -44,13 +46,14 @@ class Query(graphene.ObjectType):
         insuree=graphene.UUID(),
         contributionPlanBundle=graphene.UUID(),
         orderBy=graphene.List(of_type=graphene.String),
+        applyDefaultValidityFilter=graphene.Boolean()
     )
 
     def resolve_contract(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
            raise PermissionError("Unauthorized")
 
-        filters = [*filter_validity_business_model(**kwargs)]
+        filters = append_validity_filter(**kwargs)
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
             filters.append(Q(mutations__mutation__client_mutation_id=client_mutation_id))
