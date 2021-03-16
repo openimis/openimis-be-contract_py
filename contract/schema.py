@@ -38,7 +38,6 @@ class Query(graphene.ObjectType):
         ContractDetailsGQLType,
         client_mutation_id=graphene.String(),
         orderBy=graphene.List(of_type=graphene.String),
-        applyDefaultValidityFilter=graphene.Boolean()
     )
 
     contract_contribution_plan_details = OrderedDjangoFilterConnectionField(
@@ -46,7 +45,6 @@ class Query(graphene.ObjectType):
         insuree=graphene.UUID(),
         contributionPlanBundle=graphene.UUID(),
         orderBy=graphene.List(of_type=graphene.String),
-        applyDefaultValidityFilter=graphene.Boolean()
     )
 
     def resolve_contract(self, info, **kwargs):
