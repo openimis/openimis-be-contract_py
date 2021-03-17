@@ -514,6 +514,7 @@ class ContractDetails(object):
                             "json_ext": phi.json_ext,
                         }
                     )
+                    # TODO add only the caclulation_rule section
                     cd.save(self.user)
                     uuid_string = f"{cd.id}"
                     dict_representation = model_to_dict(cd)
