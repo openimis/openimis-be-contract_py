@@ -511,6 +511,7 @@ class ContractDetails(object):
                             "contract_id": contract_details["contract_id"],
                             "insuree_id": phi.insuree.id,
                             "contribution_plan_bundle_id": f"{phi.contribution_plan_bundle.id}",
+                            "json_ext": phi.json_ext,
                         }
                     )
                     cd.save(self.user)
