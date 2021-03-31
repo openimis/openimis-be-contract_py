@@ -19,6 +19,12 @@ DEFAULT_CFG = {
     "gql_mutation_update_payments_perms": ["101403"],
     "gql_mutation_delete_payments_perms": ["101404"],
     "gql_mutation_approve_payments_perms": ["101408"],
+    # OFS-259: Support the policyholder portal perms on Contract
+    "gql_query_contract_policyholder_portal_perms": ["154201"],
+    "gql_mutation_create_contract_policyholder_portal_perms": ["154202"],
+    "gql_mutation_update_contract_policyholder_portal_perms": ["154203"],
+    "gql_mutation_submit_contract_policyholder_portal_perms": ["154207"],
+    "gql_mutation_amend_contract_policyholder_portal_perms": ["154209"],
 }
 
 
@@ -38,6 +44,12 @@ class ContractConfig(AppConfig):
     gql_mutation_update_payments_perms = []
     gql_mutation_delete_payments_perms = []
     gql_mutation_approve_payments_perms = []
+    # OFS-259: Support the policyholder portal perms on Contract
+    gql_query_contract_policyholder_portal_perms = []
+    gql_mutation_create_contract_policyholder_portal_perms = []
+    gql_mutation_update_contract_policyholder_portal_perms = []
+    gql_mutation_submit_contract_policyholder_portal_perms = []
+    gql_mutation_amend_contract_policyholder_portal_perms = []
 
     def _configure_permissions(selfself, cfg):
         ContractConfig.gql_query_contract_perms = cfg[
@@ -75,6 +87,22 @@ class ContractConfig(AppConfig):
         ]
         ContractConfig.gql_mutation_approve_payments_perms = cfg[
             "gql_mutation_approve_payments_perms"
+        ]
+        # OFS-259: Support the policyholder portal perms on Contract
+        ContractConfig.gql_query_contract_policyholder_portal_perms = cfg[
+            "gql_query_contract_policyholder_portal_perms"
+        ]
+        ContractConfig.gql_mutation_create_contract_policyholder_portal_perms = cfg[
+            "gql_mutation_create_contract_policyholder_portal_perms"
+        ]
+        ContractConfig.gql_mutation_update_contract_policyholder_portal_perms = cfg[
+            "gql_mutation_update_contract_policyholder_portal_perms"
+        ]
+        ContractConfig.gql_mutation_submit_contract_policyholder_portal_perms = cfg[
+            "gql_mutation_submit_contract_policyholder_portal_perms"
+        ]
+        ContractConfig.gql_mutation_amend_contract_policyholder_portal_perms = cfg[
+            "gql_mutation_amend_contract_policyholder_portal_perms"
         ]
 
     def ready(self):
