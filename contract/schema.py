@@ -49,7 +49,8 @@ class Query(graphene.ObjectType):
 
     def resolve_contract(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
-           raise PermissionError("Unauthorized")
+            if not info.context.user.has_perms(ContractConfig.gql_query_contract_policyholder_portal_perms):
+                raise PermissionError("Unauthorized")
 
         filters = append_validity_filter(**kwargs)
         client_mutation_id = kwargs.get("client_mutation_id", None)
@@ -69,7 +70,8 @@ class Query(graphene.ObjectType):
 
     def resolve_contract_details(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
-           raise PermissionError("Unauthorized")
+            if not info.context.user.has_perms(ContractConfig.gql_query_contract_policyholder_portal_perms):
+                raise PermissionError("Unauthorized")
 
         filters = []
         client_mutation_id = kwargs.get("client_mutation_id", None)
@@ -80,7 +82,8 @@ class Query(graphene.ObjectType):
 
     def resolve_contract_contribution_plan_details(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
-           raise PermissionError("Unauthorized")
+            if not info.context.user.has_perms(ContractConfig.gql_query_contract_policyholder_portal_perms):
+                raise PermissionError("Unauthorized")
 
         query = ContractContributionPlanDetails.objects.all()
 
