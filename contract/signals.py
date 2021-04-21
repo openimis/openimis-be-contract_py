@@ -4,12 +4,17 @@ import uuid
 from .config import get_message_approved_contract
 from .models import Contract, ContractDetails, ContractContributionPlanDetails
 from core.signals import Signal
+from django.db.models import Q
 from django.db.models.signals import post_save
 from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from django.core.mail import send_mail, BadHeaderError
 from django.dispatch import receiver
+from payment.apps import PaymentConfig
 from payment.models import Payment, PaymentDetail
+from payment.signals import signal_before_payment_query
+from policyholder.apps import PolicyholderConfig
+from policyholder.models import PolicyHolderUser
 from insuree.models import InsureePolicy
 
 
@@ -118,6 +123,34 @@ def activate_contracted_policies(sender, instance, **kwargs):
                             )
                         contract.state = Contract.STATE_EFFECTIVE
                         __save_or_update_contract(contract, contract.user_updated)
+
+
+# additional filters for payment in 'contract' tab
+def append_contract_filter(sender, **kwargs):
+    user = kwargs.get("user", None)
+    additional_filter = kwargs.get('additional_filter', None)
+    if "contract" in additional_filter:
+        # then check perms
+        if user.has_perms(PaymentConfig.gql_query_payments_perms) or user.has_perms(PolicyholderConfig.gql_query_payment_portal_perms):
+            contract_id = additional_filter["contract"]
+            contract_to_process = Contract.objects.filter(id=contract_id).first()
+            # check if user is linked to ph in policy holder user table
+            type_user = f"{user}"
+            # related to user object output (i) or (t)
+            # check if we have interactive user from current context
+            if '(i)' in type_user:
+                ph_user = PolicyHolderUser.objects.filter(Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.i_user.id)).first()
+                if ph_user:
+                    return Q(
+                        payment_details__premium__contract_contribution_plan_details__contract_details__contract__id=contract_id
+                    )
+            else:
+                return Q(
+                    payment_details__premium__contract_contribution_plan_details__contract_details__contract__id=contract_id
+                )
+
+
+signal_before_payment_query.connect(append_contract_filter)
 
 
 def __save_json_external(user_id, datetime, message):
