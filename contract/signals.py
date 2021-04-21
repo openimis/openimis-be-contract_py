@@ -144,10 +144,6 @@ def append_contract_filter(sender, **kwargs):
                     return Q(
                         payment_details__premium__contract_contribution_plan_details__contract_details__contract__id=contract_id
                     )
-            else:
-                return Q(
-                    payment_details__premium__contract_contribution_plan_details__contract_details__contract__id=contract_id
-                )
 
 
 signal_before_payment_query.connect(append_contract_filter)
