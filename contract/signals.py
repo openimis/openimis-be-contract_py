@@ -10,6 +10,9 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from django.core.mail import send_mail, BadHeaderError
 from django.dispatch import receiver
+from insuree.apps import InsureeConfig
+from insuree.models import InsureePolicy
+from insuree.signals import signal_before_insuree_policy_query
 from payment.apps import PaymentConfig
 from payment.models import Payment, PaymentDetail
 from payment.signals import signal_before_payment_query
@@ -88,9 +91,36 @@ def append_contract_filter(sender, **kwargs):
                     )
 
 
+# additional filters for InsureePolicy in contract
+def append_contract_policy_insuree_filter(sender, **kwargs):
+    user = kwargs.get("user", None)
+    additional_filter = kwargs.get('additional_filter', None)
+    if "contract" in additional_filter:
+        # then check perms
+        if user.has_perms(InsureeConfig.gql_query_insuree_policy_perms) or user.has_perms(PolicyholderConfig.gql_query_insuree_policy_portal_perms):
+            contract_id = additional_filter["contract"]
+            contract_to_process = Contract.objects.filter(id=contract_id).first()
+            # check if user is linked to ph in policy holder user table
+            type_user = f"{user}"
+            # related to user object output (i) or (t)
+            # check if we have interactive user from current context
+            if '(i)' in type_user:
+                ph_user = PolicyHolderUser.objects.filter(Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.i_user.id)).first()
+                if ph_user or user.has_perms(InsureeConfig.gql_query_insuree_policy_perms):
+                    policies = list(
+                        ContractContributionPlanDetails.objects.filter(contract_details__contract__id=contract_id).values_list("policy", flat=True)
+                    )
+                    return Q(
+                        start_date__gte=contract_to_process.date_valid_from,
+                        start_date__lte=contract_to_process.date_valid_to,
+                        policy__in=policies
+                    )
+
+
 signal_contract.connect(on_contract_signal, dispatch_uid="on_contract_signal")
 signal_contract_approve.connect(on_contract_approve_signal, dispatch_uid="on_contract_approve_signal")
 signal_before_payment_query.connect(append_contract_filter)
+signal_before_insuree_policy_query.connect(append_contract_policy_insuree_filter)
 
 
 @receiver(post_save, sender=Payment, dispatch_uid="payment_signal_paid")
