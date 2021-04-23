@@ -84,7 +84,14 @@ def append_contract_filter(sender, **kwargs):
             # related to user object output (i) or (t)
             # check if we have interactive user from current context
             if '(i)' in type_user:
-                ph_user = PolicyHolderUser.objects.filter(Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.i_user.id)).first()
+                from core import datetime
+                now = datetime.datetime.now()
+                ph_user = PolicyHolderUser.objects.filter(
+                    Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.i_user.id)
+                ).filter(
+                    Q(date_valid_from=None) | Q(date_valid_from__lte=now),
+                    Q(date_valid_to=None) | Q(date_valid_to__gte=now)
+                ).first()
                 if ph_user or user.has_perms(PaymentConfig.gql_query_payments_perms):
                     return Q(
                         payment_details__premium__contract_contribution_plan_details__contract_details__contract__id=contract_id
