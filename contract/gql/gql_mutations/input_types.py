@@ -52,10 +52,12 @@ class ContractApproveInputType(OpenIMISMutation.Input):
 
 class ContractApproveBulkInputType(OpenIMISMutation.Input):
     contract_uuids = graphene.List(graphene.UUID, required=True)
+    extended_filters = graphene.String(required=False)
 
 
 class ContractCounterBulkInputType(OpenIMISMutation.Input):
     contract_uuids = graphene.List(graphene.UUID, required=True)
+    extended_filters = graphene.String(required=False)
 
 
 class ContractCounterInputType(OpenIMISMutation.Input):
