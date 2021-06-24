@@ -87,7 +87,7 @@ def append_contract_filter(sender, **kwargs):
                 from core import datetime
                 now = datetime.datetime.now()
                 ph_user = PolicyHolderUser.objects.filter(
-                    Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.i_user.id)
+                    Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.id)
                 ).filter(
                     Q(date_valid_from=None) | Q(date_valid_from__lte=now),
                     Q(date_valid_to=None) | Q(date_valid_to__gte=now)
@@ -115,7 +115,7 @@ def append_contract_policy_insuree_filter(sender, **kwargs):
                 from core import datetime
                 now = datetime.datetime.now()
                 ph_user = PolicyHolderUser.objects.filter(
-                    Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.i_user.id)
+                    Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.id)
                 ).filter(
                     Q(date_valid_from=None) | Q(date_valid_from__lte=now),
                     Q(date_valid_to=None) | Q(date_valid_to__gte=now)
