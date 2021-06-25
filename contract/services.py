@@ -515,7 +515,7 @@ class ContractDetails(object):
                         }
                     )
                     # TODO add only the caclulation_rule section
-                    cd.save(self.user)
+                    cd.save(username=self.user.username)
                     uuid_string = f"{cd.id}"
                     dict_representation = model_to_dict(cd)
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
@@ -553,7 +553,7 @@ class ContractDetails(object):
                         "contribution_plan_bundle_id": f"{phi.contribution_plan_bundle.id}",
                     }
                 )
-                cd.save(self.user)
+                cd.save(username=self.user.username)
                 uuid_string = f"{cd.id}"
                 dict_representation = model_to_dict(cd)
                 dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
