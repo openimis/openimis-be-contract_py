@@ -16,6 +16,7 @@ from insuree.signals import signal_before_insuree_policy_query
 from payment.apps import PaymentConfig
 from payment.models import Payment, PaymentDetail
 from payment.signals import signal_before_payment_query
+from policy.signals import signal_check_formal_sector_for_policy
 from policyholder.apps import PolicyholderConfig
 from policyholder.models import PolicyHolderUser
 from insuree.models import InsureePolicy
@@ -131,10 +132,23 @@ def append_contract_policy_insuree_filter(sender, **kwargs):
                     )
 
 
+# check if policy is related to formal sector contract
+def formal_sector_policies(sender, **kwargs):
+    policy_id = kwargs.get('policy_id', None)
+    ccpd = ContractContributionPlanDetails.objects.filter(policy__id=policy_id, is_deleted=False).first()
+    if ccpd:
+        cd = ccpd.contract_details
+        contract = cd.contract
+        return contract.policy_holder
+    else:
+        return None
+
+
 signal_contract.connect(on_contract_signal, dispatch_uid="on_contract_signal")
 signal_contract_approve.connect(on_contract_approve_signal, dispatch_uid="on_contract_approve_signal")
 signal_before_payment_query.connect(append_contract_filter)
 signal_before_insuree_policy_query.connect(append_contract_policy_insuree_filter)
+signal_check_formal_sector_for_policy.connect(formal_sector_policies)
 
 
 @receiver(post_save, sender=Payment, dispatch_uid="payment_signal_paid")
