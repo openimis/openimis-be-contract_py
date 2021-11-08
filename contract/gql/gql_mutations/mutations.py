@@ -2,7 +2,7 @@ from core import TimeUtils
 from core.schema import OpenIMISMutation
 from core.gql.gql_mutations import ObjectNotExistException
 from contract.services import Contract as ContractService, \
-    ContractDetails as ContractDetailsService
+    ContractDetails as ContractDetailsService, ContractToInvoiceService
 from contract.models import Contract, ContractMutation
 from contract.apps import ContractConfig
 from django.contrib.auth.models import AnonymousUser
@@ -280,3 +280,36 @@ class ContractDetailsFromPHInsureeMutationMixin:
             ph_insuree=data_insuree
         )
         return output_data
+
+
+class ContractCreateInvoiceMutationMixin:
+
+    @property
+    def _model(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        pass
+
+    @classmethod
+    def _mutate(cls, user, **data):
+        client_mutation_id = data.get("client_mutation_id")
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        output = cls.create_contract_invoice(user=user, data=data)
+        if output["success"]:
+            return None
+        else:
+            return f"Error! - {output['message']}: {output['detail']}"
+
+    @classmethod
+    def create_contract_invoice(cls, user, data):
+        queryset = Contract.objects.filter(id=data['id'])
+        if queryset.count() == 1:
+            contract = queryset.first()
+            contract_to_invoice_service = ContractToInvoiceService(user=user)
+            output_data = contract_to_invoice_service.create_invoice(instance=contract, convert_to='InvoiceLine', user=user)
+            return output_data

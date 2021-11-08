@@ -28,6 +28,8 @@ from payment.models import Payment, PaymentDetail
 from payment.services import update_or_create_payment
 from insuree.models import Insuree
 
+from core.signals import *
+
 
 class ContractUpdateError(Exception):
 
@@ -710,7 +712,6 @@ class ContractContributionPlanDetails(object):
             dict_representation['contribution_plan_details'] = ccpd_list
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
-            print(traceback.format_exc())
             return _output_exception(
                 model_name="ContractContributionPlanDetails",
                 method="contractValuation",
@@ -855,11 +856,23 @@ class PaymentService(object):
         return payment_details_data
 
 
+class ContractToInvoiceService(object):
+
+    def __init__(self, user):
+        self.user = user
+
+    @classmethod
+    @register_service_signal('create_invoice_from_contract')
+    def create_invoice(self, instance, convert_to="Invoice", **kwargs):
+        """ run convert the ContractContributionPlanDetails of the contract to invoice lines"""
+        pass
+
+
 def _output_exception(model_name, method, exception):
     return {
         "success": False,
         "message": f"Failed to {method} {model_name}",
-        "detail": f"{exception} - {traceback.format_exc()}",
+        "detail": f"{exception}",
         "data": "",
     }
 
