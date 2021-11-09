@@ -290,7 +290,9 @@ class ContractCreateInvoiceMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        pass
+        if type(user) is AnonymousUser or not user.id or not user.has_perms(
+                ContractConfig.gql_invoice_create_perms):
+            raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
