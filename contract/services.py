@@ -28,6 +28,8 @@ from payment.models import Payment, PaymentDetail
 from payment.services import update_or_create_payment
 from insuree.models import Insuree
 
+from core.signals import *
+
 
 class ContractUpdateError(Exception):
 
@@ -852,6 +854,18 @@ class PaymentService(object):
                 "premium": contribution
             })
         return payment_details_data
+
+
+class ContractToInvoiceService(object):
+
+    def __init__(self, user):
+        self.user = user
+
+    @classmethod
+    @register_service_signal('create_invoice_from_contract')
+    def create_invoice(self, instance, convert_to="Invoice", **kwargs):
+        """ run convert the ContractContributionPlanDetails of the contract to invoice lines"""
+        pass
 
 
 def _output_exception(model_name, method, exception):

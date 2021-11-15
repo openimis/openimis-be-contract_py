@@ -3,14 +3,14 @@ from core.gql.gql_mutations.base_mutation  import BaseMutation, BaseDeleteMutati
 from .mutations import ContractCreateMutationMixin, ContractUpdateMutationMixin, \
     ContractDeleteMutationMixin, ContractSubmitMutationMixin, \
     ContractApproveMutationMixin, ContractCounterMutationMixin, \
-    ContractAmendMutationMixin, ContractRenewMutationMixin
+    ContractAmendMutationMixin, ContractRenewMutationMixin, ContractCreateInvoiceMutationMixin
 from contract.models import Contract
 from contract.gql.gql_types import ContractGQLType
 from contract.gql.gql_mutations.input_types import ContractCreateInputType, ContractUpdateInputType, \
     ContractSubmitInputType, ContractApproveInputType, ContractCounterInputType, \
     ContractApproveBulkInputType, ContractAmendInputType, ContractRenewInputType, \
-    ContractCounterBulkInputType
-from contract.tasks import approve_contracts, counter_contracts
+    ContractCounterBulkInputType, ContractCreateInvoiceBulkInputType
+from contract.tasks import approve_contracts, counter_contracts, create_invoice_from_contracts
 
 
 class CreateContractMutation(ContractCreateMutationMixin, BaseMutation):
@@ -93,6 +93,35 @@ class CounterContractMutation(ContractCounterMutationMixin, BaseMutation):
     _model = Contract
 
     class Input(ContractCounterInputType):
+        pass
+
+
+class ContractCreateInvoiceBulkMutation(ContractCreateInvoiceMutationMixin, BaseMutation):
+    _mutation_class = "ContractCreateInvoiceBulkMutation"
+    _mutation_module = "contract"
+    _model = Contract
+
+    @classmethod
+    @mutation_on_uuids_from_filter_business_model(Contract, ContractGQLType, 'extended_filters', {})
+    def async_mutate(cls, user, **data):
+        if "client_mutation_id" in data:
+            data.pop('client_mutation_id')
+        if "client_mutation_label" in data:
+            data.pop('client_mutation_label')
+        if "contract_uuids" in data or "uuids" in data:
+            cls.create_contract_invoice(user=user, contracts=data)
+        return None
+
+    @classmethod
+    def create_contract_invoice(cls, user, contracts):
+        if "uuids" in contracts:
+            contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
+            create_invoice_from_contracts.delay(user_id=f'{user.id}', contracts=contracts["uuids"])
+        else:
+            if "contract_uuids" in contracts:
+                create_invoice_from_contracts.delay(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
+
+    class Input(ContractCreateInvoiceBulkInputType):
         pass
 
 
