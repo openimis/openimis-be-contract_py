@@ -64,6 +64,11 @@ class ContractCounterInputType(OpenIMISMutation.Input):
     id = graphene.UUID(required=True)
 
 
+class ContractCreateInvoiceBulkInputType(OpenIMISMutation.Input):
+    contract_uuids = graphene.List(graphene.UUID, required=True)
+    extended_filters = graphene.String(required=False)
+
+
 class ContractAmendInputType(OpenIMISMutation.Input):
     id = graphene.UUID(required=True)
     amount_notified = graphene.Decimal(max_digits=18, decimal_places=2, required=False)

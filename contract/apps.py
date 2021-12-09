@@ -25,12 +25,12 @@ DEFAULT_CFG = {
     "gql_mutation_update_contract_policyholder_portal_perms": ["154203"],
     "gql_mutation_submit_contract_policyholder_portal_perms": ["154207"],
     "gql_mutation_amend_contract_policyholder_portal_perms": ["154209"],
+    "gql_invoice_create_perms": ["155102"],
 }
 
 
 class ContractConfig(AppConfig):
     name = MODULE_NAME
-
     gql_query_contract_perms = []
     gql_query_contract_admins_perms = []
     gql_mutation_create_contract_perms = []
@@ -50,6 +50,7 @@ class ContractConfig(AppConfig):
     gql_mutation_update_contract_policyholder_portal_perms = []
     gql_mutation_submit_contract_policyholder_portal_perms = []
     gql_mutation_amend_contract_policyholder_portal_perms = []
+    gql_invoice_create_perms = []
 
     def _configure_permissions(selfself, cfg):
         ContractConfig.gql_query_contract_perms = cfg[
@@ -103,6 +104,9 @@ class ContractConfig(AppConfig):
         ]
         ContractConfig.gql_mutation_amend_contract_policyholder_portal_perms = cfg[
             "gql_mutation_amend_contract_policyholder_portal_perms"
+        ]
+        ContractConfig.gql_invoice_create_perms = cfg[
+            "gql_invoice_create_perms"
         ]
 
     def ready(self):
