@@ -8,6 +8,7 @@ from uuid import UUID
 import graphene
 from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
+from core.test_helpers import create_test_technical_user
 from policyholder.tests.helpers import *
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
@@ -29,8 +30,9 @@ class MutationTestContract(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
+        if not TechnicalUser.objects.filter(username='admin').exists():
+            #User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
+            create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.user = User.objects.filter(username='admin').first()
         # some test data so as to created contract properly
         cls.income = 500

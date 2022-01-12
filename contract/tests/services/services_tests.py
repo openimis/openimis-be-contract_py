@@ -2,6 +2,7 @@ from django.test import TestCase
 from contract.services import Contract as ContractService, ContractDetails as ContractDetailsService, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsService
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
+from core.test_helpers import create_test_technical_user
 from policyholder.models import PolicyHolder, PolicyHolderInsuree
 from policyholder.tests.helpers import create_test_policy_holder, create_test_policy_holder_insuree
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
@@ -14,12 +15,13 @@ from calculation.services import get_parameters, get_rule_details, \
 
 
 class ServiceTestContract(TestCase):
+    user = None
 
     @classmethod
     def setUpClass(cls):
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
         cls.user = User.objects.filter(username='admin').first()
+        if not cls.user:
+            cls.user = create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.contract_service = ContractService(cls.user)
         cls.contract_details_service = ContractDetailsService(cls.user)
         cls.contract_contribution_plan_details_service = ContractContributionPlanDetailsService(cls.user)
@@ -306,12 +308,13 @@ class ServiceTestContract(TestCase):
 
 
 class CalculationContractTest(TestCase):
+    user = None
 
     @classmethod
     def setUpClass(cls):
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
         cls.user = User.objects.filter(username='admin').first()
+        if not cls.user:
+            cls.user = create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.contract_service = ContractService(cls.user)
         cls.income = 500
         cls.rate = 5
