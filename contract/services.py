@@ -28,6 +28,10 @@ from insuree.models import Insuree
 
 from core.signals import *
 
+import logging
+
+logger = logging.getLogger(__file__)
+
 
 class ContractUpdateError(Exception):
 
@@ -101,6 +105,9 @@ class Contract(object):
                 "save": save,
             }
         )
+        if not result_contract_valuation or result_contract_valuation["success"] is False:
+            logger.error("contract valuation failed %s", result_contract_valuation)
+            raise Exception("contract valuation failed " + result_contract_valuation)
         return result_contract_valuation["data"]
 
     # TODO update contract scenario according to wiki page
@@ -505,7 +512,7 @@ class ContractDetails(object):
             )
             for phi in policy_holder_insuree:
                 # TODO add the validity condition also!
-                if phi.is_deleted == False and phi.contribution_plan_bundle:
+                if phi.is_deleted is False and phi.contribution_plan_bundle:
                     cd = ContractDetailsModel(
                         **{
                             "contract_id": contract_details["contract_id"],
