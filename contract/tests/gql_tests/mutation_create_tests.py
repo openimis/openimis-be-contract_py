@@ -31,7 +31,6 @@ class MutationTestContract(TestCase):
     @classmethod
     def setUpClass(cls):
         if not TechnicalUser.objects.filter(username='admin').exists():
-            #User.objects.create_superuser(username='admin', password='S\/pe®Pąßw0rd™')
             create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.user = User.objects.filter(username='admin').first()
         # some test data so as to created contract properly
