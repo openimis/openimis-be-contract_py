@@ -1,11 +1,9 @@
 import json
-import uuid
-import traceback
 
 from copy import copy
 from .config import get_message_counter_contract
 
-from django.db.models.query import QuerySet, Q
+from django.db.models.query import Q
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.serializers.json import DjangoJSONEncoder
@@ -20,7 +18,7 @@ from contract.models import Contract as ContractModel, \
 from calculation.services import run_calculation_rules
 
 from policyholder.models import PolicyHolderInsuree
-from contribution.models import Premium, Payer
+from contribution.models import Premium
 from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
 
 from policy.models import Policy
@@ -29,6 +27,10 @@ from payment.services import update_or_create_payment
 from insuree.models import Insuree
 
 from core.signals import *
+
+import logging
+
+logger = logging.getLogger(__file__)
 
 
 class ContractUpdateError(Exception):
@@ -103,6 +105,9 @@ class Contract(object):
                 "save": save,
             }
         )
+        if not result_contract_valuation or result_contract_valuation["success"] is False:
+            logger.error("contract valuation failed %s", result_contract_valuation)
+            raise Exception("contract valuation failed " + result_contract_valuation)
         return result_contract_valuation["data"]
 
     # TODO update contract scenario according to wiki page
@@ -243,7 +248,7 @@ class Contract(object):
             # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_approve.state)
             # check if we can submit
-            if state_right is not "approvable":
+            if state_right != "approvable":
                 raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable!")
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
@@ -282,7 +287,7 @@ class Contract(object):
             # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_counter.state)
             # check if we can submit
-            if state_right is not "approvable":
+            if state_right != "approvable":
                 raise ContractUpdateError("You cannot counter this contract! The status of contract is not Negotiable!")
             contract_to_counter.state = ContractModel.STATE_COUNTER
             signal_contract.send(sender=ContractModel, contract=contract_to_counter, user=self.user)
@@ -309,7 +314,7 @@ class Contract(object):
             # variable to check if we have right to amend contract
             state_right = self.__check_rights_by_status(contract_to_amend.state)
             # check if we can amend
-            if state_right is not "cannot_update" and contract_to_amend.state is not ContractModel.STATE_TERMINATED:
+            if state_right != "cannot_update" and contract_to_amend.state != ContractModel.STATE_TERMINATED:
                 raise ContractUpdateError("You cannot amend this contract!")
             # create copy of the contract
             amended_contract = copy(contract_to_amend)
@@ -507,7 +512,7 @@ class ContractDetails(object):
             )
             for phi in policy_holder_insuree:
                 # TODO add the validity condition also!
-                if phi.is_deleted == False and phi.contribution_plan_bundle:
+                if phi.is_deleted is False and phi.contribution_plan_bundle:
                     cd = ContractDetailsModel(
                         **{
                             "contract_id": contract_details["contract_id"],
