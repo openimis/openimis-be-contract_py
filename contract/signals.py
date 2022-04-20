@@ -196,7 +196,7 @@ def activate_contracted_policies(sender, instance, **kwargs):
                                     "start_date": ccpd.date_valid_from,
                                     "effective_date": ccpd.date_valid_from,
                                     "expiry_date": ccpd.date_valid_to + datetimedelta(
-                                        ccpd.contribution_plan.benefit_plan.grace_period
+                                        ccpd.contribution_plan.get_contribution_length()
                                     ),
                                     "audit_user_id": -1,
                                 }
