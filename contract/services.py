@@ -625,6 +625,7 @@ class ContractContributionPlanDetails(object):
             policies_covered = list(policies.order_by('start_date'))
         else:
             policies_covered = []
+            missing_coverage = []
         # make sure the policies covers the contract : 
         last_date_covered = date_valid_from
         # get the start date of the new contract by updating last_date_covered to the policy.stop_date
@@ -637,7 +638,7 @@ class ContractContributionPlanDetails(object):
                 last_date_covered = cur_policy.expiry_date
                 policy_output.append(cur_policy)
             elif cur_policy.expiry_date <= date_valid_to:
-                missing_coverage[] = { 'start':cur_policy.start_date, 'stop': last_date_covered}
+                missing_coverage.append({ 'start':cur_policy.start_date, 'stop': last_date_covered})
                 last_date_covered = cur_policy.expiry_date
                 policy_output.append(cur_policy)
 
