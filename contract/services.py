@@ -22,9 +22,12 @@ from contribution.models import Premium
 from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
 
 from policy.models import Policy
+from product.models import Product
 from payment.models import Payment, PaymentDetail
 from payment.services import update_or_create_payment
 from insuree.models import Insuree
+
+from dateutil.relativedelta import relativedelta
 
 from core.signals import *
 
@@ -469,9 +472,9 @@ class Contract(object):
                 raise PermissionError("Unauthorized")
 
             contract_output_list = []
-            payment_detail = PaymentDetail.objects.filter(
+            payment_detail = PaymentDetail.get_queryset(PaymentDetail.objects.filter(
                 payment__id=credit_note["id"]
-            ).prefetch_related(
+            )).prefetch_related(
                 'premium__contract_contribution_plan_details__contract_details__contract'
             ).prefetch_related(
                 'premium__contract_contribution_plan_details'
@@ -588,7 +591,7 @@ class ContractContributionPlanDetails(object):
             insuree=insuree,
             date_valid_from=ccpd.date_valid_from,
             date_valid_to=ccpd.date_valid_to,
-            product_id=ccpd.contribution_plan.benefit_plan.id,
+            product=ccpd.contribution_plan.benefit_plan,
         )
         return self.__create_contribution_from_policy(ccpd, policies)
 
@@ -610,52 +613,70 @@ class ContractContributionPlanDetails(object):
             ccpd.save(username=self.user.username)
             return [ccpd_new, ccpd]
 
-    def __get_policy(self, insuree, date_valid_from, date_valid_to, product_id):
+    def __get_policy(self, insuree, date_valid_from, date_valid_to, product):
         from core import datetime
         policy_output = []
         # get all policies related to the product and insuree
-        policies = Policy.objects.filter(product__id=product_id).filter(family__head_insuree=insuree)
-        # get covered policy
-        if len(list(policies)) > 0:
-            policies_covered = list(policies.filter(
-                Q(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
-            ).order_by('start_date'))
+        policies = Policy.get_queryset(Policy.objects.filter(product=product)\
+                    .filter(family__head_insuree=insuree)\
+                    .filter(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from))
+        # get covered policy, use count to run a COUNT query
+        if count(policies) > 0:
+            policies_covered = list(policies.order_by('start_date'))
         else:
             policies_covered = []
-
+        # make sure the policies covers the contract : 
         last_date_covered = date_valid_from
+        # get the start date of the new contract by updating last_date_covered to the policy.stop_date
         while last_date_covered < date_valid_to and len(policies_covered) > 0:
             cur_policy = policies_covered.pop()
             # to check if it does take the first
-            if cur_policy.start_date < date_valid_from:
+            if cur_policy.start_date <= last_date_covered:
                 # Really unlikely we might create a policy that stop at curPolicy.startDate
                 # (start at curPolicy.startDate - product length) and add it to policy_output
                 last_date_covered = cur_policy.expiry_date
                 policy_output.append(cur_policy)
+            elif cur_policy.expiry_date <= date_valid_to:
+                missing_coverage[] = { 'start':cur_policy.start_date, 'stop': last_date_covered}
+                last_date_covered = cur_policy.expiry_date
+                policy_output.append(cur_policy)
+
+        for data in missing_coverage:
+            policy_created = create_contract_details_policies(insuree, product, data.start, data.stop)
+            if policy_created is not None and len(policy_created)>0:
+                policy_output += policy_created
+
 
         # now we create new policy
         while last_date_covered < date_valid_to:
-            # create policy for insuree familly
-            # TODO Policy with status - new open=32 in policy-be_py module
+           policy_created = create_contract_details_policies(insuree, product, last_date_covered, date_valid_to)
+            if policy_created is not None and len(policy_created)>0:
+                policy_output += policy_created
+        return policy_output
+
+    def create_contract_details_policies(insuree, product, last_date_covered, date_valid_to)
+                # create policy for insuree familly
+        # TODO Policy with status - new open=32 in policy-be_py module
+        policy_output = []
+        while last_date_covered < date_valid_to:
+            expiry_date = last_date_covered + relativedelta(months = product.insurance_period)
             cur_policy = Policy.objects.create(
                 **{
                     "family": insuree.family,
-                    "product_id": product_id,
+                    "product": product,
                     "status": Policy.STATUS_ACTIVE,
                     "stage": Policy.STAGE_NEW,
                     "enroll_date": last_date_covered,
                     "start_date": last_date_covered,
                     "validity_from": last_date_covered,
                     "effective_date": last_date_covered,
-                    "expiry_date": date_valid_to,
+                    "expiry_date": expiry_date,
                     "validity_to": None,
                     "audit_user_id": -1,
                 }
             )
-            last_date_covered = cur_policy.expiry_date
+            last_date_covered = expiry_date
             policy_output.append(cur_policy)
-
-        return policy_output
 
     @check_authentication
     def contract_valuation(self, contract_contribution_plan_details):
