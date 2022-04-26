@@ -643,7 +643,7 @@ class ContractContributionPlanDetails(object):
                 policy_output.append(cur_policy)
 
         for data in missing_coverage:
-            policy_created = self.create_contract_details_policies(insuree, product, data['start'], data['stop'])
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, data['start'], data['stop'])
             if policy_created is not None and len(policy_created) > 0:
                 policy_output += policy_created
 
