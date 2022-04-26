@@ -617,9 +617,9 @@ class ContractContributionPlanDetails(object):
         from core import datetime
         policy_output = []
         # get all policies related to the product and insuree
-        policies = Policy.get_queryset(Policy.objects.filter(product=product)\
-                    .filter(family__head_insuree=insuree)\
-                    .filter(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from))
+        policies = Policy.objects.filter(product=product)\
+            .filter(family__head_insuree=insuree)\
+            .filter(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
         # get covered policy, use count to run a COUNT query
         if policies.count() > 0:
             policies_covered = list(policies.order_by('start_date'))
@@ -649,7 +649,7 @@ class ContractContributionPlanDetails(object):
 
         # now we create new policy
         while last_date_covered < date_valid_to:
-            policy_created = self.create_contract_details_policies(insuree, product, last_date_covered, date_valid_to)
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, last_date_covered, date_valid_to)
             if policy_created is not None and len(policy_created) > 0:
                 policy_output += policy_created
         return policy_output
@@ -677,7 +677,7 @@ class ContractContributionPlanDetails(object):
             )
             last_date_covered = expiry_date
             policy_output.append(cur_policy)
-        return policy_output
+        return policy_output, last_date_covered
 
     @check_authentication
     def contract_valuation(self, contract_contribution_plan_details):
