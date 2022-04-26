@@ -712,7 +712,7 @@ class ContractContributionPlanDetails(object):
                 payment_id = payment_detail_contribution.payment.id
                 payment_object = Payment.objects.get(id=payment_id)
                 received_amount = payment_object.received_amount if payment_object.received_amount else 0
-                total_amount = total_amount - received_amount
+                total_amount = float(total_amount) - float(received_amount)
             dict_representation['total_amount'] = total_amount
             dict_representation['contribution_plan_details'] = ccpd_list
             return _output_result_success(dict_representation=dict_representation)
