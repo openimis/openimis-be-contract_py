@@ -87,3 +87,11 @@ Another payments are omitted in processing.
 - payment.models.PaymentDetail
 - policy.models.Policy
 - calculation module
+
+
+## bulk operations - required configuration
+- for 'bulk approve contract' and 'bulk counter contract' graphQL mutations 
+- running rabbitmq docker image
+- running celery within "{imis_directory}/openimis-be_py/venv/bin/celery": 
+`-A openIMIS worker --loglevel=DEBUG --without-gossip --without-mingle --without-heartbeat -Ofair`
+- without this required steps you won't be able to bulk counter/approve contract 
