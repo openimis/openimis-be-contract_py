@@ -378,7 +378,7 @@ class Contract(object):
             # block renewing contract not in Updateable or Approvable state
             state_right = self.__check_rights_by_status(contract_to_renew.state)
             # check if we can renew
-            if state_right is not "cannot_update" and contract_to_renew.state is not ContractModel.STATE_TERMINATED:
+            if state_right != "cannot_update" and contract_to_renew.state != ContractModel.STATE_TERMINATED:
                 raise ContractUpdateError("You cannot renew this contract!")
             # create copy of the contract - later we also copy contract detail
             renewed_contract = copy(contract_to_renew)

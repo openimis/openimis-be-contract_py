@@ -2,20 +2,13 @@ import logging
 
 from django.db import migrations
 
+from core.utils import insert_role_right_for_system
+
 logger = logging.getLogger(__name__)
 
 
-MIGRATION_SQL = """
-    /* Contract */
-    DECLARE @SystemRole INT
-    SELECT @SystemRole = role.RoleID from tblRole role where IsSystem=256;
-    /* Contract aprrove or counter */
-    IF NOT EXISTS (SELECT * FROM [tblRoleRight] WHERE [RoleID] = @SystemRole AND [RightID] = 152109)
-    BEGIN
-        INSERT [dbo].[tblRoleRight] ([RoleID], [RightID], [ValidityFrom]) 
-        VALUES (@SystemRole, 152109, CURRENT_TIMESTAMP)
-    END 
-"""
+def add_rights(apps, schema_editor):
+    insert_role_right_for_system(256, 152109)  # contract approve
 
 
 class Migration(migrations.Migration):
@@ -24,5 +17,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(MIGRATION_SQL)
+        migrations.RunPython(add_rights),
     ]
