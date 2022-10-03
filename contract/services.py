@@ -1,11 +1,9 @@
 import json
-import uuid
-import traceback
 
 from copy import copy
 from .config import get_message_counter_contract
 
-from django.db.models.query import QuerySet, Q
+from django.db.models.query import Q
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.serializers.json import DjangoJSONEncoder
@@ -20,15 +18,22 @@ from contract.models import Contract as ContractModel, \
 from calculation.services import run_calculation_rules
 
 from policyholder.models import PolicyHolderInsuree
-from contribution.models import Premium, Payer
+from contribution.models import Premium
 from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
 
 from policy.models import Policy
+from product.models import Product
 from payment.models import Payment, PaymentDetail
 from payment.services import update_or_create_payment
 from insuree.models import Insuree
 
+from dateutil.relativedelta import relativedelta
+
 from core.signals import *
+
+import logging
+
+logger = logging.getLogger(__file__)
 
 
 class ContractUpdateError(Exception):
@@ -103,6 +108,9 @@ class Contract(object):
                 "save": save,
             }
         )
+        if not result_contract_valuation or result_contract_valuation["success"] is False:
+            logger.error("contract valuation failed %s", result_contract_valuation)
+            raise Exception("contract valuation failed " + result_contract_valuation)
         return result_contract_valuation["data"]
 
     # TODO update contract scenario according to wiki page
@@ -243,7 +251,7 @@ class Contract(object):
             # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_approve.state)
             # check if we can submit
-            if state_right is not "approvable":
+            if state_right != "approvable":
                 raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable!")
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
@@ -282,7 +290,7 @@ class Contract(object):
             # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_counter.state)
             # check if we can submit
-            if state_right is not "approvable":
+            if state_right != "approvable":
                 raise ContractUpdateError("You cannot counter this contract! The status of contract is not Negotiable!")
             contract_to_counter.state = ContractModel.STATE_COUNTER
             signal_contract.send(sender=ContractModel, contract=contract_to_counter, user=self.user)
@@ -309,7 +317,7 @@ class Contract(object):
             # variable to check if we have right to amend contract
             state_right = self.__check_rights_by_status(contract_to_amend.state)
             # check if we can amend
-            if state_right is not "cannot_update" and contract_to_amend.state is not ContractModel.STATE_TERMINATED:
+            if state_right != "cannot_update" and contract_to_amend.state != ContractModel.STATE_TERMINATED:
                 raise ContractUpdateError("You cannot amend this contract!")
             # create copy of the contract
             amended_contract = copy(contract_to_amend)
@@ -464,9 +472,9 @@ class Contract(object):
                 raise PermissionError("Unauthorized")
 
             contract_output_list = []
-            payment_detail = PaymentDetail.objects.filter(
+            payment_detail = PaymentDetail.get_queryset(PaymentDetail.objects.filter(
                 payment__id=credit_note["id"]
-            ).prefetch_related(
+            )).prefetch_related(
                 'premium__contract_contribution_plan_details__contract_details__contract'
             ).prefetch_related(
                 'premium__contract_contribution_plan_details'
@@ -507,7 +515,7 @@ class ContractDetails(object):
             )
             for phi in policy_holder_insuree:
                 # TODO add the validity condition also!
-                if phi.is_deleted == False and phi.contribution_plan_bundle:
+                if phi.is_deleted is False and phi.contribution_plan_bundle:
                     cd = ContractDetailsModel(
                         **{
                             "contract_id": contract_details["contract_id"],
@@ -583,7 +591,7 @@ class ContractContributionPlanDetails(object):
             insuree=insuree,
             date_valid_from=ccpd.date_valid_from,
             date_valid_to=ccpd.date_valid_to,
-            product_id=ccpd.contribution_plan.benefit_plan.id,
+            product=ccpd.contribution_plan.benefit_plan,
         )
         return self.__create_contribution_from_policy(ccpd, policies)
 
@@ -605,52 +613,71 @@ class ContractContributionPlanDetails(object):
             ccpd.save(username=self.user.username)
             return [ccpd_new, ccpd]
 
-    def __get_policy(self, insuree, date_valid_from, date_valid_to, product_id):
+    def __get_policy(self, insuree, date_valid_from, date_valid_to, product):
         from core import datetime
         policy_output = []
         # get all policies related to the product and insuree
-        policies = Policy.objects.filter(product__id=product_id).filter(family__head_insuree=insuree)
-        # get covered policy
-        if len(list(policies)) > 0:
-            policies_covered = list(policies.filter(
-                Q(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
-            ).order_by('start_date'))
+        policies = Policy.objects.filter(product=product)\
+            .filter(family__head_insuree=insuree)\
+            .filter(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
+        # get covered policy, use count to run a COUNT query
+        if policies.count() > 0:
+            policies_covered = list(policies.order_by('start_date'))
         else:
             policies_covered = []
-
+        missing_coverage = []
+        # make sure the policies covers the contract : 
         last_date_covered = date_valid_from
+        # get the start date of the new contract by updating last_date_covered to the policy.stop_date
         while last_date_covered < date_valid_to and len(policies_covered) > 0:
             cur_policy = policies_covered.pop()
             # to check if it does take the first
-            if cur_policy.start_date < date_valid_from:
+            if cur_policy.start_date <= last_date_covered:
                 # Really unlikely we might create a policy that stop at curPolicy.startDate
                 # (start at curPolicy.startDate - product length) and add it to policy_output
                 last_date_covered = cur_policy.expiry_date
                 policy_output.append(cur_policy)
+            elif cur_policy.expiry_date <= date_valid_to:
+                missing_coverage.append({'start': cur_policy.start_date, 'stop': last_date_covered})
+                last_date_covered = cur_policy.expiry_date
+                policy_output.append(cur_policy)
+
+        for data in missing_coverage:
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, data['start'], data['stop'])
+            if policy_created is not None and len(policy_created) > 0:
+                policy_output += policy_created
 
         # now we create new policy
         while last_date_covered < date_valid_to:
-            # create policy for insuree familly
-            # TODO Policy with status - new open=32 in policy-be_py module
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, last_date_covered, date_valid_to)
+            if policy_created is not None and len(policy_created) > 0:
+                policy_output += policy_created
+        return policy_output
+
+    def create_contract_details_policies(self, insuree, product, last_date_covered, date_valid_to):
+        # create policy for insuree familly
+        # TODO Policy with status - new open=32 in policy-be_py module
+        policy_output = []
+        while last_date_covered < date_valid_to:
+            expiry_date = last_date_covered + relativedelta(months=product.insurance_period)
             cur_policy = Policy.objects.create(
                 **{
                     "family": insuree.family,
-                    "product_id": product_id,
+                    "product": product,
                     "status": Policy.STATUS_ACTIVE,
                     "stage": Policy.STAGE_NEW,
                     "enroll_date": last_date_covered,
                     "start_date": last_date_covered,
                     "validity_from": last_date_covered,
                     "effective_date": last_date_covered,
-                    "expiry_date": date_valid_to,
+                    "expiry_date": expiry_date,
                     "validity_to": None,
                     "audit_user_id": -1,
                 }
             )
-            last_date_covered = cur_policy.expiry_date
+            last_date_covered = expiry_date
             policy_output.append(cur_policy)
-
-        return policy_output
+        return policy_output, last_date_covered
 
     @check_authentication
     def contract_valuation(self, contract_contribution_plan_details):
@@ -707,7 +734,7 @@ class ContractContributionPlanDetails(object):
                 payment_id = payment_detail_contribution.payment.id
                 payment_object = Payment.objects.get(id=payment_id)
                 received_amount = payment_object.received_amount if payment_object.received_amount else 0
-                total_amount = total_amount - received_amount
+                total_amount = float(total_amount) - float(received_amount)
             dict_representation['total_amount'] = total_amount
             dict_representation['contribution_plan_details'] = ccpd_list
             return _output_result_success(dict_representation=dict_representation)
