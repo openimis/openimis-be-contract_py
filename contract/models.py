@@ -5,7 +5,6 @@ from django.conf import settings
 from django.db import models
 from core import models as core_models, fields
 from graphql import ResolveInfo
-from jsonfallback.fields import FallbackJSONField
 from policy.models import Policy
 from contribution.models import Premium
 from policyholder.models import PolicyHolder
@@ -94,7 +93,7 @@ class ContractDetails(core_models.HistoryModel):
                                                  db_column='ContributionPlanBundleUUID',
                                                  on_delete=models.deletion.DO_NOTHING)
 
-    json_param = FallbackJSONField(db_column='Json_param', blank=True, null=True)
+    json_param = models.JSONField(db_column='Json_param', blank=True, null=True)
 
     objects = ContractDetailsManager()
 
