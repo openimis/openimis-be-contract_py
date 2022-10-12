@@ -26,7 +26,7 @@ def create_test_contract(policy_holder=None, custom_props={}):
             'date_payment_due': datetime.date(2011, 10, 31),
             'state': 1,
             'payment_reference': "Payment Reference",
-            'json_ext': json.dumps("{}"),
+            'json_ext': {},
             **custom_props
     }
 
