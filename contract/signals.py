@@ -1,17 +1,12 @@
-import json
-import uuid
-
 from .config import get_message_approved_contract
-from .models import Contract, ContractDetails, ContractContributionPlanDetails
+from .models import Contract, ContractContributionPlanDetails
 from core.signals import Signal
 from django.db.models import Q
 from django.db.models.signals import post_save
-from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from django.core.mail import send_mail, BadHeaderError
 from django.dispatch import receiver
 from insuree.apps import InsureeConfig
-from insuree.models import InsureePolicy
 from insuree.signals import signal_before_insuree_policy_query
 from payment.apps import PaymentConfig
 from payment.models import Payment, PaymentDetail
@@ -21,9 +16,9 @@ from policyholder.apps import PolicyholderConfig
 from policyholder.models import PolicyHolderUser
 from insuree.models import InsureePolicy
 
-
 _contract_signal_params = ["contract", "user"]
-_contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service", "ccpd_service"]
+_contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service",
+                                   "ccpd_service"]
 signal_contract = Signal(providing_args=_contract_signal_params)
 signal_contract_approve = Signal(providing_args=_contract_signal_params)
 
@@ -77,7 +72,8 @@ def append_contract_filter(sender, **kwargs):
     additional_filter = kwargs.get('additional_filter', None)
     if "contract" in additional_filter:
         # then check perms
-        if user.has_perms(PaymentConfig.gql_query_payments_perms) or user.has_perms(PolicyholderConfig.gql_query_payment_portal_perms):
+        if user.has_perms(PaymentConfig.gql_query_payments_perms) or user.has_perms(
+                PolicyholderConfig.gql_query_payment_portal_perms):
             contract_id = additional_filter["contract"]
             contract_to_process = Contract.objects.filter(id=contract_id).first()
             # check if user is linked to ph in policy holder user table
@@ -105,7 +101,8 @@ def append_contract_policy_insuree_filter(sender, **kwargs):
     additional_filter = kwargs.get('additional_filter', None)
     if "contract" in additional_filter:
         # then check perms
-        if user.has_perms(InsureeConfig.gql_query_insuree_policy_perms) or user.has_perms(PolicyholderConfig.gql_query_insuree_policy_portal_perms):
+        if user.has_perms(InsureeConfig.gql_query_insuree_policy_perms) or user.has_perms(
+                PolicyholderConfig.gql_query_insuree_policy_portal_perms):
             contract_id = additional_filter["contract"]
             contract_to_process = Contract.objects.filter(id=contract_id).first()
             # check if user is linked to ph in policy holder user table
@@ -123,7 +120,8 @@ def append_contract_policy_insuree_filter(sender, **kwargs):
                 ).first()
                 if ph_user or user.has_perms(InsureeConfig.gql_query_insuree_policy_perms):
                     policies = list(
-                        ContractContributionPlanDetails.objects.filter(contract_details__contract__id=contract_id).values_list("policy", flat=True)
+                        ContractContributionPlanDetails.objects.filter(
+                            contract_details__contract__id=contract_id).values_list("policy", flat=True)
                     )
                     return Q(
                         start_date__gte=contract_to_process.date_valid_from,
@@ -219,12 +217,12 @@ def __save_json_external(user_id, datetime, message):
 def __save_or_update_contract(contract, user):
     contract.save(username=user.username)
     historical_record = contract.history.all().first()
-    contract.json_ext = json.dumps(__save_json_external(
-        user_id=historical_record.user_updated.id,
-        datetime=historical_record.date_updated,
+    contract.json_ext = __save_json_external(
+        user_id=str(historical_record.user_updated.id),
+        datetime=str(historical_record.date_updated),
         message=f"contract updated - state "
                 f"{historical_record.state}"
-    ), cls=DjangoJSONEncoder)
+    )
     contract.save(username=user.username)
     return contract
 
@@ -253,7 +251,7 @@ def __send_email_notify_payment(code, name, contact_name, amount_due, payment_re
                 due_amount=amount_due,
                 payment_reference=payment_reference
             ),
-            from_email= settings.EMAIL_HOST_USER,
+            from_email=settings.EMAIL_HOST_USER,
             recipient_list=[email],
             fail_silently=False,
         )
