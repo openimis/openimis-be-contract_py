@@ -1,26 +1,21 @@
-import datetime
-import numbers
 import base64
 from unittest import mock
 from django.test import TestCase
-from uuid import UUID
 
 import graphene
 from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
+from core.models import TechnicalUser
 from core.test_helpers import create_test_technical_user
 from policyholder.tests.helpers import *
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
-from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
-from policyholder.models import PolicyHolder, PolicyHolderInsuree
 from contract import schema as contract_schema
 from graphene import Schema
 from graphene.test import Client
 
 
 class MutationTestContract(TestCase):
-
     class BaseTestContext:
         def __init__(self, user):
             self.user = user
@@ -30,6 +25,7 @@ class MutationTestContract(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super(MutationTestContract, cls).setUpClass()
         if not TechnicalUser.objects.filter(username='admin').exists():
             create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.user = User.objects.filter(username='admin').first()
@@ -42,7 +38,7 @@ class MutationTestContract(TestCase):
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": '{"calculation_rule":{"rate": "' + str(cls.rate) + '"}}'}
+            custom_props={"json_ext": {"calculation_rule": {"rate": cls.rate}}}
         )
         cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
             contribution_plan=cls.contribution_plan,
@@ -56,7 +52,7 @@ class MutationTestContract(TestCase):
                 contribution_plan_bundle=cls.contribution_plan_bundle,
                 custom_props={
                     "last_policy": None,
-                    "json_ext": '{"calculation_rule":{"income": "' + str(cls.income) + '"}}'
+                    "json_ext": {"calculation_rule": {"income": cls.income}}
                 }
             )
             create_test_policy(
@@ -83,19 +79,10 @@ class MutationTestContract(TestCase):
         )
         cls.graph_client = Client(cls.schema)
 
-    @classmethod
-    def tearDownClass(cls):
-        # tear down the test data created during set up
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(cls.policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=cls.policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=cls.contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=cls.contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=cls.contribution_plan.id).delete()
-
     def test_mutation_contract_create_without_policy_holder(self):
         time_stamp = datetime.datetime.now()
         input_param = {
-            "code": "XYZ:"+str(time_stamp),
+            "code": "XYZ:" + str(time_stamp),
         }
         self.add_mutation("createContract", input_param)
         result = self.find_by_exact_attributes_query(
@@ -107,7 +94,7 @@ class MutationTestContract(TestCase):
         Contract.objects.filter(id=str(converted_id)).delete()
         self.assertEqual(
             (
-                "XYZ:"+str(time_stamp),
+                "XYZ:" + str(time_stamp),
             )
             ,
             (
@@ -118,7 +105,7 @@ class MutationTestContract(TestCase):
     def test_mutation_contract_create_with_policy_holder(self):
         time_stamp = datetime.datetime.now()
         input_param = {
-            "code": "XYZ:"+str(time_stamp),
+            "code": "XYZ:" + str(time_stamp),
             "policyHolderId": str(self.policy_holder.id)
         }
         self.add_mutation("createContract", input_param)
@@ -133,7 +120,7 @@ class MutationTestContract(TestCase):
 
         self.assertEqual(
             (
-                "XYZ:"+str(time_stamp),
+                "XYZ:" + str(time_stamp),
             )
             ,
             (
@@ -182,18 +169,18 @@ class MutationTestContract(TestCase):
         node_content_str = "\n".join(params.keys()) if query_type == "contract" else ''
         query = F'''
         {{
-            {query_type}({ 'contract_Id: "'+str(params["contractId"])+'", orderBy: ["-dateCreated"]'  if "contractId" in params else self.build_params(params)}) {{
+            {query_type}({'contract_Id: "' + str(params["contractId"]) + '", orderBy: ["-dateCreated"]' if "contractId" in params else self.build_params(params)}) {{
                 totalCount
                 edges {{
                   node {{
                     id
                     {node_content_str}
                     version
-                    {'amountDue' if query_type =='contract' else '' }
-                    {'amountNotified' if query_type =='contract' else '' }
-                    {'amountRectified' if query_type =='contract' else '' }
-                    {'state' if query_type =='contract' else '' }
-                    {'paymentReference' if query_type =='contract' else '' }
+                    {'amountDue' if query_type == 'contract' else ''}
+                    {'amountNotified' if query_type == 'contract' else ''}
+                    {'amountRectified' if query_type == 'contract' else ''}
+                    {'state' if query_type == 'contract' else ''}
+                    {'paymentReference' if query_type == 'contract' else ''}
                   }}
                   cursor
                 }}

@@ -3,15 +3,12 @@ from contract.services import Contract as ContractService, ContractDetails as Co
     ContractContributionPlanDetails as ContractContributionPlanDetailsService
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 from core.test_helpers import create_test_technical_user
-from policyholder.models import PolicyHolder, PolicyHolderInsuree
 from policyholder.tests.helpers import create_test_policy_holder, create_test_policy_holder_insuree
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
-from contribution_plan.models import ContributionPlan, ContributionPlanBundle, ContributionPlanBundleDetails
 from policy.test_helpers import create_test_policy
 from core.models import User
-from calculation.services import get_parameters, get_rule_details, \
-    run_calculation_rules, get_rule_name, get_linked_class
+from calculation.services import get_parameters, get_rule_details, get_rule_name, get_linked_class
 
 
 class ServiceTestContract(TestCase):
@@ -19,6 +16,7 @@ class ServiceTestContract(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super(ServiceTestContract, cls).setUpClass()
         cls.user = User.objects.filter(username='admin').first()
         if not cls.user:
             cls.user = create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
@@ -34,7 +32,7 @@ class ServiceTestContract(TestCase):
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": '{"calculation_rule":{"rate": "' + str(cls.rate) + '"}}'}
+            custom_props={"json_ext": {"calculation_rule": {"rate": cls.rate}}}
         )
         cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
             contribution_plan=cls.contribution_plan,
@@ -48,7 +46,7 @@ class ServiceTestContract(TestCase):
                 contribution_plan_bundle=cls.contribution_plan_bundle,
                 custom_props={
                     "last_policy": None,
-                    "json_ext": '{"calculation_rule":{"income": "' + str(cls.income) + '"}}'
+                    "json_ext": {"calculation_rule": {"income": cls.income}}
                 }
             )
             create_test_policy(
@@ -60,15 +58,6 @@ class ServiceTestContract(TestCase):
                 }
             )
 
-    @classmethod
-    def tearDownClass(cls):
-        # tear down the test data created during set up
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(cls.policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=cls.policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=cls.contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=cls.contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=cls.contribution_plan.id).delete()
-
     def test_contract_create_without_policy_holder(self):
         contract = {
             'code': 'AAAAAA',
@@ -78,20 +67,20 @@ class ServiceTestContract(TestCase):
         Contract.objects.filter(id=response["data"]["id"]).delete()
         self.assertEqual(
             (
-                 True,
-                 "Ok",
-                 "",
-                 "AAAAAA",
-                 0,
-                 None,
+                True,
+                "Ok",
+                "",
+                "AAAAAA",
+                0,
+                None,
             ),
             (
-                 response['success'],
-                 response['message'],
-                 response['detail'],
-                 response['data']['code'],
-                 response['data']['amendment'],
-                 response['data']['amount_notified'],
+                response['success'],
+                response['message'],
+                response['detail'],
+                response['data']['code'],
+                response['data']['amendment'],
+                response['data']['amount_notified'],
             )
         )
 
@@ -106,18 +95,18 @@ class ServiceTestContract(TestCase):
         Contract.objects.filter(id=response["data"]["id"]).delete()
         self.assertEqual(
             (
-                 True,
-                 "Ok",
-                 "",
-                 "TESTONE",
-                 0,
+                True,
+                "Ok",
+                "",
+                "TESTONE",
+                0,
             ),
             (
-                 response['success'],
-                 response['message'],
-                 response['detail'],
-                 response['data']['code'],
-                 response['data']['amendment'],
+                response['success'],
+                response['message'],
+                response['detail'],
+                response['data']['code'],
+                response['data']['amendment'],
             )
         )
 
@@ -263,7 +252,7 @@ class ServiceTestContract(TestCase):
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
-        contract = {"id": contract_id,}
+        contract = {"id": contract_id, }
         response = self.contract_service.submit(contract)
         expected_state = 4
         result_state = response["data"]["state"]
@@ -282,7 +271,7 @@ class ServiceTestContract(TestCase):
         ph_insuree2 = create_test_policy_holder_insuree(
             policy_holder=self.policy_holder,
             contribution_plan_bundle=self.contribution_plan_bundle,
-            custom_props={"last_policy": None, "json_ext": '{"calculation_rule":{"income": "400"}}'}
+            custom_props={"last_policy": None, "json_ext": {"calculation_rule": {"income": 400}}}
         )
         contract = {
             "code": "MTEST-1",
@@ -292,8 +281,8 @@ class ServiceTestContract(TestCase):
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
-        contract = {"id": contract_id,}
-        ph_insuree_input = {"id": f'{ph_insuree2.id}',}
+        contract = {"id": contract_id, }
+        ph_insuree_input = {"id": f'{ph_insuree2.id}', }
         response = self.contract_details_service.ph_insuree_to_contract_details(
             contract=contract,
             ph_insuree=ph_insuree_input
@@ -312,6 +301,7 @@ class CalculationContractTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super(CalculationContractTest, cls).setUpClass()
         cls.user = User.objects.filter(username='admin').first()
         if not cls.user:
             cls.user = create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
@@ -323,7 +313,7 @@ class CalculationContractTest(TestCase):
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": '{"calculation_rule":{"rate": "' + str(cls.rate) + '"}}'}
+            custom_props={"json_ext": {"calculation_rule": {"rate": cls.rate}}}
         )
         cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
             contribution_plan=cls.contribution_plan,
@@ -335,17 +325,8 @@ class CalculationContractTest(TestCase):
             create_test_policy_holder_insuree(
                 policy_holder=cls.policy_holder,
                 contribution_plan_bundle=cls.contribution_plan_bundle,
-                custom_props={"last_policy": None, "json_ext": '{"calculation_rule":{"income": "' + str(cls.income) + '"}}'}
+                custom_props={"last_policy": None, "json_ext": {"calculation_rule": {"income": cls.income}}}
             )
-
-    @classmethod
-    def tearDownClass(cls):
-        # tear down the test data created during set up
-        PolicyHolderInsuree.objects.filter(policy_holder_id=str(cls.policy_holder.id)).delete()
-        PolicyHolder.objects.filter(id=cls.policy_holder.id).delete()
-        ContributionPlanBundleDetails.objects.filter(id=cls.contribution_plan_bundle_details.id).delete()
-        ContributionPlanBundle.objects.filter(id=cls.contribution_plan_bundle.id).delete()
-        ContributionPlan.objects.filter(id=cls.contribution_plan.id).delete()
 
     def test_get_rule_name(self):
         class_name = "ContractDetails"

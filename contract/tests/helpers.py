@@ -1,13 +1,12 @@
-import json
 import datetime
 
 from contribution_plan.tests.helpers import create_test_contribution_plan_bundle, create_test_contribution_plan
-from core.models import InteractiveUser, User
+from core.models import User
 from insuree.test_helpers import create_test_insuree
 from policy.test_helpers import create_test_policy
 from product.test_helpers import create_test_product
 from policyholder.tests.helpers import create_test_policy_holder
-from contribution.models import Payer, Premium
+from contribution.models import Premium
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 
 
@@ -18,16 +17,16 @@ def create_test_contract(policy_holder=None, custom_props={}):
     user = __get_or_create_simple_contract_user()
 
     object_data = {
-            'code': "CON",
-            'policy_holder': policy_holder,
-            'amount_notified': 0,
-            'amount_rectified': 0,
-            'amount_due': 0,
-            'date_payment_due': datetime.date(2011, 10, 31),
-            'state': 1,
-            'payment_reference': "Payment Reference",
-            'json_ext': {},
-            **custom_props
+        'code': "CON",
+        'policy_holder': policy_holder,
+        'amount_notified': 0,
+        'amount_rectified': 0,
+        'amount_due': 0,
+        'date_payment_due': datetime.date(2011, 10, 31),
+        'state': 1,
+        'payment_reference': "Payment Reference",
+        'json_ext': {},
+        **custom_props
     }
 
     contract = Contract(**object_data)
@@ -52,7 +51,7 @@ def create_test_contract_details(contract=None, insuree=None,
         'contract': contract,
         'insuree': insuree,
         'contribution_plan_bundle': contribution_plan_bundle,
-        'json_param': json.dumps("{}"),
+        'json_param': {},
         **custom_props
     }
 
@@ -63,13 +62,13 @@ def create_test_contract_details(contract=None, insuree=None,
 
 
 def create_test_contract_contribution_plan_details(contribution_plan=None, policy=None,
-                                                          contract_details=None, contribution=None, custom_props={}):
+                                                   contract_details=None, contribution=None, custom_props={}):
     if not contribution_plan:
         contribution_plan = create_test_contribution_plan()
 
     if not policy:
         policy = create_test_policy(
-            product=create_test_product("TestCode", custom_props={"insurance_period": 12,}),
+            product=create_test_product("TestCode", custom_props={"insurance_period": 12, }),
             insuree=create_test_insuree())
 
     if not contract_details:
@@ -91,10 +90,10 @@ def create_test_contract_contribution_plan_details(contribution_plan=None, polic
     user = __get_or_create_simple_contract_user()
     object_data = {
         'contribution_plan': contribution_plan,
-        'policy':policy,
+        'policy': policy,
         'contract_details': contract_details,
         'contribution': contribution,
-        'json_ext': json.dumps("{}"),
+        'json_ext': {},
         **custom_props
     }
 
