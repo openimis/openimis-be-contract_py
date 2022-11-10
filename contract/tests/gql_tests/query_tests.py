@@ -1,5 +1,3 @@
-import datetime
-import numbers
 import base64
 from unittest import mock
 from django.test import TestCase
@@ -13,7 +11,6 @@ from graphene.test import Client
 
 
 class ContractQueryTest(TestCase):
-
     class BaseTestContext:
         user = mock.Mock(is_anonymous=False)
         user.has_perm = mock.MagicMock(return_value=False)
@@ -23,13 +20,14 @@ class ContractQueryTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super(ContractQueryTest, cls).setUpClass()
         cls.date_created = datetime.datetime.now()
         cls.test_contract = create_test_contract(
             custom_props={
-                'code': 'testContract-'+str(cls.date_created),
-                'payment_reference': 'payment reference'+str(cls.date_created),
+                'code': 'testContract-' + str(cls.date_created),
+                'payment_reference': 'payment reference' + str(cls.date_created),
                 'amount_due': 450.99,
-                'date_valid_from':  datetime.date(2020, 1, 1),
+                'date_valid_from': datetime.date(2020, 1, 1),
                 'amendment': 1
             }
         )
@@ -45,12 +43,6 @@ class ContractQueryTest(TestCase):
         )
 
         cls.graph_client = Client(cls.schema)
-
-    @classmethod
-    def tearDownClass(cls):
-        ContractContributionPlanDetails.objects.filter(id=cls.test_contract_contribution_plan_details.id).delete()
-        ContractDetails.objects.filter(id=cls.test_contract_details.id).delete()
-        Contract.objects.filter(id=cls.test_contract.id).delete()
 
     def test_find_contract_existing(self):
         id = self.test_contract.id
@@ -331,7 +323,7 @@ class ContractQueryTest(TestCase):
 
     def test_find_contract_by_contract_code_date_valid_from_gte(self):
         code = self.test_contract.code
-        date_valid_from = str(self.test_contract.date_valid_from)+'T00:00:00'
+        date_valid_from = str(self.test_contract.date_valid_from) + 'T00:00:00'
         id = self.test_contract.id
         query = F'''
         {{

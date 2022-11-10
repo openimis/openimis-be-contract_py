@@ -22,7 +22,6 @@ from contribution.models import Premium
 from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
 
 from policy.models import Policy
-from product.models import Product
 from payment.models import Payment, PaymentDetail
 from payment.services import update_or_create_payment
 from insuree.models import Insuree
@@ -88,11 +87,11 @@ class Contract(object):
                 )["total_amount"]
                 c.amount_notified = total_amount
             historical_record = c.history.all().last()
-            c.json_ext = json.dumps(_save_json_external(
-                user_id=historical_record.user_updated.id,
-                datetime=historical_record.date_updated,
+            c.json_ext = _save_json_external(
+                user_id=str(historical_record.user_updated.id),
+                datetime=str(historical_record.date_updated),
                 message=f"create contract status {historical_record.state}"
-            ), cls=DjangoJSONEncoder)
+            )
             c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
             dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))
@@ -109,8 +108,8 @@ class Contract(object):
             }
         )
         if not result_contract_valuation or result_contract_valuation["success"] is False:
-            logger.error("contract valuation failed %s", result_contract_valuation)
-            raise Exception("contract valuation failed " + result_contract_valuation)
+            logger.error("contract valuation failed %s", str(result_contract_valuation))
+            raise Exception("contract valuation failed " + str(result_contract_valuation))
         return result_contract_valuation["data"]
 
     # TODO update contract scenario according to wiki page
@@ -168,11 +167,11 @@ class Contract(object):
         updated_contract.save(username=self.user.username)
         # save the communication
         historical_record = updated_contract.history.all().first()
-        updated_contract.json_ext = json.dumps(_save_json_external(
-            user_id=historical_record.user_updated.id,
-            datetime=historical_record.date_updated,
+        updated_contract.json_ext = _save_json_external(
+            user_id=str(historical_record.user_updated.id),
+            datetime=str(historical_record.date_updated),
             message="update contract status " + str(historical_record.state)
-        ), cls=DjangoJSONEncoder)
+        )
         updated_contract.save(username=self.user.username)
         uuid_string = f"{updated_contract.id}"
         dict_representation = model_to_dict(updated_contract)
@@ -227,7 +226,8 @@ class Contract(object):
     def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None):
         result = []
         for cd in contract_details:
-            ph_insuree = PolicyHolderInsuree.objects.filter(Q(insuree_id=cd['insuree_id'], last_policy__isnull=False)).first()
+            ph_insuree = PolicyHolderInsuree.objects.filter(
+                Q(insuree_id=cd['insuree_id'], last_policy__isnull=False)).first()
             policy_id = ph_insuree.last_policy.id if ph_insuree else None
             result.append({
                 "id": f"{cd['id']}",
@@ -378,7 +378,7 @@ class Contract(object):
             # block renewing contract not in Updateable or Approvable state
             state_right = self.__check_rights_by_status(contract_to_renew.state)
             # check if we can renew
-            if state_right is not "cannot_update" and contract_to_renew.state is not ContractModel.STATE_TERMINATED:
+            if state_right != "cannot_update" and contract_to_renew.state != ContractModel.STATE_TERMINATED:
                 raise ContractUpdateError("You cannot renew this contract!")
             # create copy of the contract - later we also copy contract detail
             renewed_contract = copy(contract_to_renew)
@@ -394,12 +394,12 @@ class Contract(object):
             renewed_contract.amount_rectified, renewed_contract.amount_due = (0, 0)
             renewed_contract.save(username=self.user.username)
             historical_record = renewed_contract.history.all().first()
-            renewed_contract.json_ext = json.dumps(_save_json_external(
-                user_id=historical_record.user_updated.id,
-                datetime=historical_record.date_updated,
+            renewed_contract.json_ext = _save_json_external(
+                user_id=str(historical_record.user_updated.id),
+                datetime=str(historical_record.date_updated),
                 message=f"contract renewed - state "
                         f"{historical_record.state}"
-            ), cls=DjangoJSONEncoder)
+            )
             renewed_contract.save(username=self.user.username)
             # copy also contract details
             self.__copy_details(contract_id=contract_id, modified_contract=renewed_contract)
@@ -444,12 +444,12 @@ class Contract(object):
                     contract.state = ContractModel.STATE_TERMINATED
                     contract.save(username=self.user.username)
                     historical_record = contract.history.all().first()
-                    contract.json_ext = json.dumps(_save_json_external(
-                        user_id=historical_record.user_updated.id,
-                        datetime=historical_record.date_updated,
+                    contract.json_ext = _save_json_external(
+                        user_id=str(historical_record.user_updated.id),
+                        datetime=str(historical_record.date_updated),
                         message=f"contract terminated - state "
                                 f"{historical_record.state}"
-                    ), cls=DjangoJSONEncoder)
+                    )
                     contract.save(username=self.user.username)
                 return {
                     "success": True,
@@ -617,8 +617,8 @@ class ContractContributionPlanDetails(object):
         from core import datetime
         policy_output = []
         # get all policies related to the product and insuree
-        policies = Policy.objects.filter(product=product)\
-            .filter(family__head_insuree=insuree)\
+        policies = Policy.objects.filter(product=product) \
+            .filter(family__head_insuree=insuree) \
             .filter(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
         # get covered policy, use count to run a COUNT query
         if policies.count() > 0:
@@ -643,13 +643,15 @@ class ContractContributionPlanDetails(object):
                 policy_output.append(cur_policy)
 
         for data in missing_coverage:
-            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, data['start'], data['stop'])
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, data['start'],
+                                                                                      data['stop'])
             if policy_created is not None and len(policy_created) > 0:
                 policy_output += policy_created
 
         # now we create new policy
         while last_date_covered < date_valid_to:
-            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, last_date_covered, date_valid_to)
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product,
+                                                                                      last_date_covered, date_valid_to)
             if policy_created is not None and len(policy_created) > 0:
                 policy_output += policy_created
         return policy_output
@@ -775,7 +777,7 @@ class ContractContributionPlanDetails(object):
             total_amount = total_amount - calculated_amount
             for ccpd_result in ccpd_results:
                 length_ccpd = float((ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
-                              + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month))
+                                    + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month))
                 periodicity = float(ccpd_result.contribution_plan.periodicity)
                 # time part of splited as a fraction to count contribution value for that splited period properly
                 part_time_period = length_ccpd / periodicity
