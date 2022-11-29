@@ -82,16 +82,16 @@ class ApproveContractBulkMutation(ContractApproveMutationMixin, BaseMutation):
             from openIMIS.celery import app as celery_app
             connection = celery_app.broker_connection().ensure_connection(max_retries=3)
             if not connection:
-                raise CeleryWorkerError("Celery worker not found. Check if it's running.")
+                raise CeleryWorkerError("Celery worker not found. Please, contact your system administrator.")
         except (IOError, OperationalError) as e:
             raise CeleryWorkerError(
-                F"Celery connection has failed. Error: {e} \n Check RabbitMQ Server connection.")
+                F"Celery connection has failed. Error: {e} \n Please, contact your system administrator.")
     @classmethod
     def approve_contracts(cls, user, contracts):
         try:
             cls._check_celery_status(cls)
         except CeleryWorkerError as e:
-            return F"Celery connection has failed. Check RabbitMQ Server connection."
+            return F"Celery connection has failed. Please, contact your system administrator."
         if "uuids" in contracts:
             contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
             approve_contracts.delay(user_id=f'{user.id}', contracts=contracts["uuids"])
