@@ -11,6 +11,8 @@ from contract.gql.gql_mutations.input_types import ContractCreateInputType, Cont
     ContractApproveBulkInputType, ContractAmendInputType, ContractRenewInputType, \
     ContractCounterBulkInputType, ContractCreateInvoiceBulkInputType
 from contract.tasks import approve_contracts, counter_contracts, create_invoice_from_contracts
+from contract.exceptions import CeleryWorkerError
+from kombu.exceptions import OperationalError
 
 
 class CreateContractMutation(ContractCreateMutationMixin, BaseMutation):
@@ -66,16 +68,30 @@ class ApproveContractBulkMutation(ContractApproveMutationMixin, BaseMutation):
     @classmethod
     @mutation_on_uuids_from_filter_business_model(Contract, ContractGQLType, 'extended_filters', {})
     def async_mutate(cls, user, **data):
+        error_message = None
         if "client_mutation_id" in data:
             data.pop('client_mutation_id')
         if "client_mutation_label" in data:
             data.pop('client_mutation_label')
         if "contract_uuids" in data or "uuids" in data:
-            cls.approve_contracts(user=user, contracts=data)
-        return None
+            error_message = cls.approve_contracts(user=user, contracts=data)
+        return error_message
 
+    def _check_celery_status(cls):
+        try:
+            from openIMIS.celery import app as celery_app
+            connection = celery_app.broker_connection().ensure_connection(max_retries=3)
+            if not connection:
+                raise CeleryWorkerError("Celery worker not found. Please, contact your system administrator.")
+        except (IOError, OperationalError) as e:
+            raise CeleryWorkerError(
+                F"Celery connection has failed. Error: {e} \n Please, contact your system administrator.")
     @classmethod
     def approve_contracts(cls, user, contracts):
+        try:
+            cls._check_celery_status(cls)
+        except CeleryWorkerError as e:
+            return F"Celery connection has failed. Please, contact your system administrator."
         if "uuids" in contracts:
             contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
             approve_contracts.delay(user_id=f'{user.id}', contracts=contracts["uuids"])
