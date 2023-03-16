@@ -71,7 +71,7 @@ class Contract(object):
     def create(self, contract):
         try:
             incoming_code = contract.get('code')
-            if ContractModel.objects.filter(code=incoming_code).exists():
+            if check_unique_code(incoming_code):
                 raise ValidationError(("Contract code %s already exists" % incoming_code))
             if not self.user.has_perms(ContractConfig.gql_mutation_create_contract_perms):
                 raise PermissionError("Unauthorized")
@@ -101,8 +101,6 @@ class Contract(object):
             c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
             dict_representation['id'], dict_representation['uuid'] = (str(uuid_string), str(uuid_string))
-        except ValidationError as exc:
-            return _output_exception(model_name="Contract", method="create", exception=exc)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="create", exception=exc)
         return _output_result_success(dict_representation=dict_representation)
