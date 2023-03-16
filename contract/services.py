@@ -952,6 +952,6 @@ def _send_email_notify_counter(code, name, contact_name, email):
 
 
 def check_unique_code(code):
-    if ContractModel.objects.filter(code=code).exists():
+    if ContractModel.objects.filter(code=code, is_deleted__isnull=False).exists():
         return [{"message": "Contract code %s already exists" % code}]
     return []
