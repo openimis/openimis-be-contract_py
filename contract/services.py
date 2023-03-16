@@ -951,3 +951,9 @@ def _send_email_notify_counter(code, name, contact_name, email):
         return email_to_send
     except BadHeaderError:
         return ValueError('Invalid header found.')
+
+
+def check_unique_code(code):
+    if ContractModel.objects.filter(code=code).exists():
+        return [{"message": "Contract code %s already exists" % code}]
+    return []

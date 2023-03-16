@@ -2,6 +2,7 @@ import graphene
 import graphene_django_optimizer as gql_optimizer
 
 from django.db.models import Q
+from .services import check_unique_code
 from core.schema import signal_mutation_module_before_mutating, OrderedDjangoFilterConnectionField
 from core.utils import append_validity_filter
 from contract.models import Contract, ContractDetails, \
@@ -46,6 +47,19 @@ class Query(graphene.ObjectType):
         contributionPlanBundle=graphene.UUID(),
         orderBy=graphene.List(of_type=graphene.String),
     )
+
+    validate_contract_code = graphene.Field(
+        graphene.Boolean,
+        contract_code=graphene.String(required=True),
+        description="Check that the specified contract code is unique."
+    )
+
+    def resolve_validate_contract_code(self, info, **kwargs):
+        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
+            if not info.context.user.has_perms(ContractConfig.gql_query_contract_policyholder_portal_perms):
+                raise PermissionError("Unauthorized")
+        errors = check_unique_code(code=kwargs['contract_code'])
+        return False if errors else True
 
     def resolve_contract(self, info, **kwargs):
         if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
