@@ -1,6 +1,9 @@
 import json
 
 from copy import copy
+
+from django.core.exceptions import ValidationError
+
 from .config import get_message_counter_contract
 
 from django.db.models.query import Q
@@ -67,6 +70,9 @@ class Contract(object):
     @check_authentication
     def create(self, contract):
         try:
+            incoming_code = contract.get('code')
+            if check_unique_code(incoming_code):
+                raise ValidationError(("Contract code %s already exists" % incoming_code))
             if not self.user.has_perms(ContractConfig.gql_mutation_create_contract_perms):
                 raise PermissionError("Unauthorized")
             c = ContractModel(**contract)
@@ -943,3 +949,9 @@ def _send_email_notify_counter(code, name, contact_name, email):
         return email_to_send
     except BadHeaderError:
         return ValueError('Invalid header found.')
+
+
+def check_unique_code(code):
+    if ContractModel.objects.filter(code=code, is_deleted=False).exists():
+        return [{"message": "Contract code %s already exists" % code}]
+    return []
