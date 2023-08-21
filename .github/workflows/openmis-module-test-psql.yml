@@ -1,4 +1,4 @@
-name: Automated CI testing
+name: POSTGRES - Automated CI testing
 # This workflow run automatically for every commit on github it checks the syntax and launch the tests.
 # | grep . | uniq -c filters out empty lines and then groups consecutive lines together with the number of occurrences
 on:
@@ -13,35 +13,33 @@ jobs:
   run_test:
     runs-on: ubuntu-20.04
     services:
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2017-latest
+      psql:
+        image: ghcr.io/openimis/openimis-pgsql:develop
         env:
-          ACCEPT_EULA: Y
-          SA_PASSWORD: GitHub999
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: IMIS
+          POSTGRES_USER: postgres
         ports:
-          - 1433:1433
-        # needed because the mssql container does not provide a health check
-        options: --health-interval=10s --health-timeout=3s --health-start-period=10s --health-retries=10 --health-cmd="/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ${SA_PASSWORD} -Q 'SELECT 1' || exit 1"
-
+          - 1433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
-      - name: install linux packages
+      - name: Setup PostgreSQL
         run: |
-          git clone --depth 1 --branch develop https://github.com/openimis/database_ms_sqlserver.git  ./sql
-          cd sql/ && bash concatenate_files.sh && cd ..
-          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-          curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y  mssql-tools build-essential dialog apt-utils unixodbc-dev -y
-          python -m pip install --upgrade pip
-      - name: pull openimis backend
+          sudo apt-get -yqq install libpq-dev
+          python -m pip install psycopg2-binary
+      - name: Pull openIMIS Backend
         run: |
           rm ./openimis -rf
-          git clone --depth 1 --branch develop https://github.com/openimis/openimis-be_py.git ./openimis
-      - name: copy current branch
+          git clone --depth 1 --branch coreMIS https://github.com/openimis/openimis-be_py.git ./openimis
+      - name: Copy Current branch
         uses: actions/checkout@v2
         with:
           path: './current-module'
@@ -59,40 +57,24 @@ jobs:
           python modules-requirements.py openimis.json > modules-requirements.txt
           cat modules-requirements.txt
           pip install -r modules-requirements.txt
-      - name: Environment info
-        working-directory: ./openimis
-        run: |
-          pip list
-      - name: Initialize DB
-        run: |
-          /opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U SA -P $SA_PASSWORD -Q 'DROP DATABASE IF EXISTS imis'
-          /opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U SA -P $SA_PASSWORD -Q 'CREATE DATABASE imis'
-          /opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U SA -P $SA_PASSWORD -d imis -i sql/output/fullDemoDatabase.sql | grep . | uniq -c
-        env:
-          SA_PASSWORD: GitHub999
-          ACCEPT_EULA: Y
-
-#      - name: Check formatting with black
-#        run: |
-#          black --check .
-
       - name: Django tests
         working-directory: ./openimis/openIMIS
         run: |
           export MODULE_NAME="$(echo $GITHUB_REPOSITORY | sed 's#^openimis/openimis-be-\(.*\)_py$#\1#')"
-          python -V
-          ls -l
           python manage.py migrate
+          python manage.py showmigrations
           python init_test_db.py | grep . | uniq -c
-          python manage.py test --keepdb $MODULE_NAME
+          python manage.py test --keep $MODULE_NAME
         env:
           SECRET_KEY: secret
           DEBUG: true
           #DJANGO_SETTINGS_MODULE: hat.settings
           DB_HOST: localhost
           DB_PORT: 1433
-          DB_NAME: imis
-          DB_USER: sa
-          DB_PASSWORD: GitHub999
+          DB_NAME: IMIS
+          DB_USER: postgres
+          DB_PASSWORD: postgres
           #DEV_SERVER: true
           SITE_ROOT: api
+          REMOTE_USER_AUTHENTICATION: True
+          DB_ENGINE: django.db.backends.postgresql
