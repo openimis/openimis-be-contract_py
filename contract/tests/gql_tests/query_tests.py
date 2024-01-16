@@ -569,7 +569,7 @@ class ContractQueryTest(TestCase):
         {{
             contractContributionPlanDetails(
                 id: "{id}"
-                contribution_Amount_Gte: {details_contribution_amount}){{
+                contribution_Amount_Gte: "{details_contribution_amount}"){{
                 totalCount
                 edges {{
                   node {{
@@ -592,7 +592,7 @@ class ContractQueryTest(TestCase):
         {{
             contractContributionPlanDetails(
                 id: "{id}"
-                contribution_Amount_Gt: {details_contribution_amount}){{
+                contribution_Amount_Gt: "{details_contribution_amount}"){{
                 totalCount
                 edges {{
                   node {{
