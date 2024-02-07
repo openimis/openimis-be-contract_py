@@ -346,7 +346,7 @@ class CalculationContractTest(TestCase):
         result_param = [param["name"] for param in result["parameters"]]
         result2_param = [param["name"] for param in result2["parameters"]]
         self.assertEqual(
-            (class_name, class_name2, ["income"], ["rate", "includeFamilly"]),
+            (class_name, class_name2, ["income"], ["rate", "includeFamily"]),
             (result["class"], result2["class"], result_param, result2_param)
         )
 
