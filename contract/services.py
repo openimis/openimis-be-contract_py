@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from copy import copy
 
@@ -261,7 +262,7 @@ class Contract(object):
                 raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable!")
             contract_details_list = {}
             contract_details_list["data"] = self.__gather_policy_holder_insuree(
-                list(ContractDetailsModel.objects.filter(contract_id=contract_to_approve.id).values()),
+                list(ContractDetailsModel.objects.filter(contract=contract_to_approve).values()),
                 contract_to_approve.amendment,
                 contract_to_approve.date_valid_from,
             )
@@ -819,6 +820,7 @@ class ContractContributionPlanDetails(object):
                             # TODO Temporary value pay_type - I have to get to know about this field what should be here
                             #  also ask about audit_user_id and pay_date value
                             "pay_type": " ",
+                            "receipt": str(uuid.uuid4())
                         }
                     )
                     ccpd_object = ContractContributionPlanDetailsModel.objects.get(id=ccpd["id"])

@@ -158,10 +158,10 @@ class CounterContractBulkMutation(ContractCounterMutationMixin, BaseMutation):
     def counter_contracts(cls, user, contracts):
         if "uuids" in contracts:
             contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
-            counter_contracts(user_id=f'{user.id}', contracts=contracts["uuids"])
+            return counter_contracts(user_id=f'{user.id}', contracts=contracts["uuids"])
         else:
             if "contract_uuids" in contracts:
-                counter_contracts(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
+                return counter_contracts(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
 
     class Input(ContractCounterBulkInputType):
         pass
