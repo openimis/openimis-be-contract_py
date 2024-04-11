@@ -6,7 +6,7 @@ import graphene
 from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
 from core.models import TechnicalUser
-from core.test_helpers import create_test_technical_user, AssertMutation
+from core.test_helpers import create_test_interactive_user, AssertMutation
 from policyholder.tests.helpers import *
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
@@ -36,10 +36,10 @@ class MutationTestContract(GraphQLTestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.user = User.objects.filter(username='admin').first()
+        cls.user = User.objects.filter(username='admin', i_user__isnull=False).first()
         super(MutationTestContract, cls).setUpClass()
         if not cls.user:
-            cls.user=create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
+            cls.user=create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', roles=[1])
         # some test data so as to created contract properly
         cls.user_token = get_token(cls.user, cls.BaseTestContext(user=cls.user))
 
