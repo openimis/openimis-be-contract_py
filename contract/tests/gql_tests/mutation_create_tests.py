@@ -6,6 +6,7 @@ import graphene
 from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
 from core.models import TechnicalUser
+from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
 from core.test_helpers import create_test_interactive_user, AssertMutation
 from policyholder.tests.helpers import *
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
@@ -20,12 +21,15 @@ import uuid
 from graphql_jwt.shortcuts import get_token
 
 
-class MutationTestContract(GraphQLTestCase):
+class MutationTestContract(openIMISGraphQLTestCase):
     GRAPHQL_URL = f'/{settings.SITE_ROOT()}graphql'
     # This is required by some version of graphene but is never used. It should be set to the schema but the import
     # is shown as an error in the IDE, so leaving it as True.
     GRAPHQL_SCHEMA = True
     admin_user = None
+    schema = Schema(
+            query=contract_schema.Query,
+    )
 
     class BaseTestContext:
         def __init__(self, user):
@@ -97,7 +101,7 @@ class MutationTestContract(GraphQLTestCase):
         input_param = {
             "code": "XYZ:" + str(time_stamp),
         }
-        self.add_mutation("createContract", input_param)
+        self.add_mutation("createContract", input_param,  self.user_token )
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
@@ -122,8 +126,7 @@ class MutationTestContract(GraphQLTestCase):
             "policyHolderId": str(self.policy_holder.id),
             "clientMutationId": str(uuid.uuid4())
         }
-        result_gql=self.add_mutation("createContract", input_param)
-        content =  AssertMutation(self,input_param["clientMutationId"], self.user_token )
+        content=self.send_mutation("createContract", input_param, self.user_token )        
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         del input_param["clientMutationId"]
         result = self.find_by_exact_attributes_query(
@@ -135,29 +138,26 @@ class MutationTestContract(GraphQLTestCase):
         # SUBMIT
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        result = self.add_mutation("submitContract", input_param)
-        content =  AssertMutation(self,input_param["clientMutationId"], self.user_token )
+        content=self.send_mutation("submitContract", input_param, self.user_token )        
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
 
         # COUNTER
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        result = self.add_mutation("counterContract", input_param)
-        content =  AssertMutation(self,input_param["clientMutationId"], self.user_token )
+        content=self.send_mutation("counterContract", input_param, self.user_token )        
+
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
 
         # reSUBMIT
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        result = self.add_mutation("submitContract", input_param)
-
-        content =  AssertMutation(self,input_param["clientMutationId"], self.user_token )
+        content=self.send_mutation("submitContract", input_param, self.user_token )        
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         # Approve
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        result = self.add_mutation("approveContract", input_param)
-        content =  AssertMutation(self,input_param["clientMutationId"], self.user_token )
+        content=self.send_mutation("approveContract", input_param, self.user_token )        
+
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         
         # tear down the test data (TODO FK conflict with mutation )
