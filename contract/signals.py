@@ -52,17 +52,18 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_to_approve.date_approved = now
     contract_to_approve.state = 5
     approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)
-    email_contact_name = contract_to_approve.policy_holder.contact_name["contactName"] \
-        if "contactName" in contract_to_approve.policy_holder.contact_name \
-        else contract_to_approve.policy_holder.contact_name
-    email = __send_email_notify_payment(
-        code=contract_to_approve.code,
-        name=contract_to_approve.policy_holder.trade_name,
-        contact_name=email_contact_name,
-        amount_due=contract_to_approve.amount_due,
-        payment_reference=contract_to_approve.payment_reference,
-        email=contract_to_approve.policy_holder.email,
-    )
+    if contract_to_approve.policy_holder.email :
+        email_contact_name = contract_to_approve.policy_holder.contact_name["contactName"] \
+            if  (contract_to_approve.policy_holder.contact_name and "contactName" in contract_to_approve.policy_holder.contact_name) \
+            else contract_to_approve.policy_holder.trade_name or contract_to_approve.policy_holder.code
+        email = __send_email_notify_payment(
+            code=contract_to_approve.code,
+            name=contract_to_approve.policy_holder.trade_name,
+            contact_name=email_contact_name,
+            amount_due=contract_to_approve.amount_due,
+            payment_reference=contract_to_approve.payment_reference,
+            email=contract_to_approve.policy_holder.email,
+        )
     return approved_contract
 
 

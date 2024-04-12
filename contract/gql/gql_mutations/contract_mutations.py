@@ -88,16 +88,13 @@ class ApproveContractBulkMutation(ContractApproveMutationMixin, BaseMutation):
                 F"Celery connection has failed. Error: {e} \n Please, contact your system administrator.")
     @classmethod
     def approve_contracts(cls, user, contracts):
-        try:
-            cls._check_celery_status(cls)
-        except CeleryWorkerError as e:
-            return F"Celery connection has failed. Please, contact your system administrator."
+
         if "uuids" in contracts:
             contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
-            approve_contracts.delay(user_id=f'{user.id}', contracts=contracts["uuids"])
+            return approve_contracts(user_id=f'{user.id}', contracts=contracts["uuids"])
         else:
             if "contract_uuids" in contracts:
-                approve_contracts.delay(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
+                return approve_contracts(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
 
     class Input(ContractApproveBulkInputType):
         pass
@@ -132,10 +129,10 @@ class ContractCreateInvoiceBulkMutation(ContractCreateInvoiceMutationMixin, Base
     def create_contract_invoice(cls, user, contracts):
         if "uuids" in contracts:
             contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
-            create_invoice_from_contracts.delay(user_id=f'{user.id}', contracts=contracts["uuids"])
+            return create_invoice_from_contracts(user_id=f'{user.id}', contracts=contracts["uuids"])
         else:
             if "contract_uuids" in contracts:
-                create_invoice_from_contracts.delay(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
+                return create_invoice_from_contracts(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
 
     class Input(ContractCreateInvoiceBulkInputType):
         pass
@@ -161,10 +158,10 @@ class CounterContractBulkMutation(ContractCounterMutationMixin, BaseMutation):
     def counter_contracts(cls, user, contracts):
         if "uuids" in contracts:
             contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
-            counter_contracts.delay(user_id=f'{user.id}', contracts=contracts["uuids"])
+            return counter_contracts(user_id=f'{user.id}', contracts=contracts["uuids"])
         else:
             if "contract_uuids" in contracts:
-                counter_contracts.delay(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
+                return counter_contracts(user_id=f'{user.id}', contracts=contracts["contract_uuids"])
 
     class Input(ContractCounterBulkInputType):
         pass

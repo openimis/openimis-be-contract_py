@@ -6,16 +6,31 @@ import graphene
 from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
 from core.models import TechnicalUser
-from core.test_helpers import create_test_technical_user
+from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
+from core.test_helpers import create_test_interactive_user, AssertMutation
 from policyholder.tests.helpers import *
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
 from contract import schema as contract_schema
 from graphene import Schema
 from graphene.test import Client
+from graphene_django.utils.testing import GraphQLTestCase
+from django.conf import settings
+import json
+import uuid
+from graphql_jwt.shortcuts import get_token
 
 
-class MutationTestContract(TestCase):
+class MutationTestContract(openIMISGraphQLTestCase):
+    GRAPHQL_URL = f'/{settings.SITE_ROOT()}graphql'
+    # This is required by some version of graphene but is never used. It should be set to the schema but the import
+    # is shown as an error in the IDE, so leaving it as True.
+    GRAPHQL_SCHEMA = True
+    admin_user = None
+    schema = Schema(
+            query=contract_schema.Query,
+    )
+
     class BaseTestContext:
         def __init__(self, user):
             self.user = user
@@ -25,11 +40,13 @@ class MutationTestContract(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.user = User.objects.filter(username='admin', i_user__isnull=False).first()
         super(MutationTestContract, cls).setUpClass()
-        if not TechnicalUser.objects.filter(username='admin').exists():
-            create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
-        cls.user = User.objects.filter(username='admin').first()
+        if not cls.user:
+            cls.user=create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', roles=[1])
         # some test data so as to created contract properly
+        cls.user_token = get_token(cls.user, cls.BaseTestContext(user=cls.user))
+
         cls.income = 500
         cls.rate = 5
         cls.number_of_insuree = 2
@@ -84,14 +101,14 @@ class MutationTestContract(TestCase):
         input_param = {
             "code": "XYZ:" + str(time_stamp),
         }
-        self.add_mutation("createContract", input_param)
+        self.add_mutation("createContract", input_param,  self.user_token )
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
         )["edges"]
-        converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
+        #converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
         # tear down the test data
-        Contract.objects.filter(id=str(converted_id)).delete()
+        #Contract.objects.filter(id=str(converted_id)).delete()
         self.assertEqual(
             (
                 "XYZ:" + str(time_stamp),
@@ -106,27 +123,47 @@ class MutationTestContract(TestCase):
         time_stamp = datetime.datetime.now()
         input_param = {
             "code": "XYZ:" + str(time_stamp),
-            "policyHolderId": str(self.policy_holder.id)
+            "policyHolderId": str(self.policy_holder.id),
+            "clientMutationId": str(uuid.uuid4())
         }
-        self.add_mutation("createContract", input_param)
+        content=self.send_mutation("createContract", input_param, self.user_token )        
+        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+        del input_param["clientMutationId"]
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
         )["edges"]
         converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-        # tear down the test data
-        ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
-        Contract.objects.filter(id=str(converted_id)).delete()
 
-        self.assertEqual(
-            (
-                "XYZ:" + str(time_stamp),
-            )
-            ,
-            (
-                result[0]['node']['code'],
-            )
-        )
+        # SUBMIT
+        input_param = {'id': converted_id,
+            "clientMutationId": str(uuid.uuid4())}
+        content=self.send_mutation("submitContract", input_param, self.user_token )        
+        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+
+        # COUNTER
+        input_param = {'id': converted_id,
+            "clientMutationId": str(uuid.uuid4())}
+        content=self.send_mutation("counterContract", input_param, self.user_token )        
+
+        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+
+        # reSUBMIT
+        input_param = {'id': converted_id,
+            "clientMutationId": str(uuid.uuid4())}
+        content=self.send_mutation("submitContract", input_param, self.user_token )        
+        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+        # Approve
+        input_param = {'id': converted_id,
+            "clientMutationId": str(uuid.uuid4())}
+        content=self.send_mutation("approveContract", input_param, self.user_token )        
+
+        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+        
+        # tear down the test data (TODO FK conflict with mutation )
+        #ContractDetails.objects.filter(contract_id=str(converted_id)).delete()
+        #Contract.objects.filter(id=str(converted_id)).delete()
+
 
     def find_by_id_query(self, query_type, id, context=None):
         query = F'''
@@ -155,6 +192,8 @@ class MutationTestContract(TestCase):
     def find_by_exact_attributes_query(self, query_type, params, context=None):
         if "dateValidFrom" in params:
             params.pop('dateValidFrom')
+        if "clientMutationId" in params:
+            params.pop('clientMutationId')
         if "dateValidTo" in params:
             params.pop('dateValidTo')
         if "policyHolderId" in params:
@@ -200,6 +239,9 @@ class MutationTestContract(TestCase):
         return query_data
 
     def add_mutation(self, mutation_type, input_params, context=None):
+        
+        if "clientMutationId" not in input_params:
+            input_params["clientMutationId"]= str(uuid.uuid4())
         mutation = f'''
         mutation 
         {{
@@ -213,8 +255,12 @@ class MutationTestContract(TestCase):
           }}
         }}
         '''
-        mutation_result = self.execute_mutation(mutation, context=context)
-        return mutation_result
+        mutation_result = self.query(mutation, 
+                                     
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"}, )
+        self.assertResponseNoErrors(mutation_result)
+        content = json.loads(mutation_result.content)
+        return content
 
     def execute_mutation(self, mutation, context=None):
         if context is None:
