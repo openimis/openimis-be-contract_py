@@ -911,7 +911,7 @@ def _output_exception(model_name, method, exception):
         "success": False,
         "message": f"Failed to {method} {model_name}",
         "detail": f"{exception}",
-        "data": traceback.format_exc() if settings.MODE == "DEV" else "",
+        "data": traceback.format_exc() if settings.DEBUG else "",
     }
 
 
