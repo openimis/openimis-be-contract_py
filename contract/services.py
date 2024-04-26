@@ -1,6 +1,7 @@
 import json
 import uuid
-
+import traceback
+from django.conf import settings
 from copy import copy
 
 from django.core.exceptions import ValidationError
@@ -910,7 +911,7 @@ def _output_exception(model_name, method, exception):
         "success": False,
         "message": f"Failed to {method} {model_name}",
         "detail": f"{exception}",
-        "data": "",
+        "data": traceback.format_exc() if settings.MODE == "DEV" else "",
     }
 
 
