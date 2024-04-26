@@ -7,7 +7,7 @@ from contract.tests.helpers import *
 from contract.models import Contract, ContractDetails
 from core.models import TechnicalUser
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
-from core.test_helpers import create_test_interactive_user, AssertMutation
+from core.test_helpers import create_test_interactive_user
 from policyholder.tests.helpers import *
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
@@ -40,10 +40,10 @@ class MutationTestContract(openIMISGraphQLTestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.user = User.objects.filter(username='admin', i_user__isnull=False).first()
         super(MutationTestContract, cls).setUpClass()
+        cls.user = User.objects.filter(username='admin', i_user__isnull=False).first()
         if not cls.user:
-            cls.user=create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', roles=[1])
+            cls.user=create_test_interactive_user(username='admin')
         # some test data so as to created contract properly
         cls.user_token = get_token(cls.user, cls.BaseTestContext(user=cls.user))
 
@@ -139,14 +139,14 @@ class MutationTestContract(openIMISGraphQLTestCase):
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
         content=self.send_mutation("submitContract", input_param, self.user_token )        
-        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+        content = self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
 
         # COUNTER
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
         content=self.send_mutation("counterContract", input_param, self.user_token )        
 
-        self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
+        content = self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
 
         # reSUBMIT
         input_param = {'id': converted_id,
