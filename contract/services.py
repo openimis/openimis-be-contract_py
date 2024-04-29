@@ -668,6 +668,9 @@ class ContractContributionPlanDetails(object):
         # create policy for insuree familly
         # TODO Policy with status - new open=32 in policy-be_py module
         policy_output = []
+        #TODO support familyless insuree
+        if not insuree.family:
+            raise ValidationError(f"insuree {insuree.chf_id} does not have a family, this is mandatory")
         while last_date_covered < date_valid_to:
             expiry_date = last_date_covered + relativedelta(months=product.insurance_period)
             cur_policy = Policy.objects.create(

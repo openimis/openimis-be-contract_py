@@ -80,8 +80,11 @@ class MutationTestContract(openIMISGraphQLTestCase):
                     "expiry_date": datetime.datetime(2021, 7, 1)
                 }
             )
-
+        #TODO support familyless insuree
+        # cls.insuree_wo_family = create_test_insuree(with_family=False)
+        cls.insuree_wo_family = create_test_insuree(with_family=True)
         cls.policy_holder_insuree = create_test_policy_holder_insuree(
+            insuree=cls.insuree_wo_family,
             policy_holder=cls.policy_holder,
             contribution_plan_bundle=cls.contribution_plan_bundle
         )
