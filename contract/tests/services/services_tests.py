@@ -64,7 +64,7 @@ class ServiceTestContract(TestCase):
         }
         response = self.contract_service.create(contract)
         # tear down the test data
-        Contract.objects.filter(id=response["data"]["id"]).delete()
+        #Contract.objects.filter(id=response["data"]["id"]).delete()
         self.assertEqual(
             (
                 True,
@@ -91,8 +91,8 @@ class ServiceTestContract(TestCase):
         }
         response = self.contract_service.create(contract)
         # tear down the test data
-        ContractDetails.objects.filter(contract_id=response["data"]["id"]).delete()
-        Contract.objects.filter(id=response["data"]["id"]).delete()
+        #ContractDetails.objects.filter(contract_id=response["data"]["id"]).delete()
+        #Contract.objects.filter(id=response["data"]["id"]).delete()
         self.assertEqual(
             (
                 True,
@@ -132,8 +132,8 @@ class ServiceTestContract(TestCase):
         is_deleted = response['success']
 
         # tear down the test data
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        #ContractDetails.objects.filter(contract_id=contract_id).delete()
+        #Contract.objects.filter(id=contract_id).delete()
 
         self.assertEqual(
             ("payment_one xxxxxxxx", True),
@@ -156,8 +156,8 @@ class ServiceTestContract(TestCase):
         failed = response['detail']
 
         # tear down the test data
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        #ContractDetails.objects.filter(contract_id=contract_id).delete()
+        #Contract.objects.filter(id=contract_id).delete()
 
         self.assertEqual(
             "ContractUpdateError: You cannot update already set PolicyHolder in Contract!", failed,
@@ -199,8 +199,8 @@ class ServiceTestContract(TestCase):
 
         # tear down the test data
         list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id', 'json_ext'))
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        #ContractDetails.objects.filter(contract_id=contract_id).delete()
+        #Contract.objects.filter(id=contract_id).delete()
 
         self.assertEqual(
             (
@@ -233,10 +233,10 @@ class ServiceTestContract(TestCase):
 
         # tear down the test data
         list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id'))
-        for cd in list_cd:
-            ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        #for cd in list_cd:
+        #    ccpd = ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
+        #ContractDetails.objects.filter(contract_id=contract_id).delete()
+        #Contract.objects.filter(id=contract_id).delete()
 
         self.assertEqual(
             expected_state, result_state
@@ -260,8 +260,8 @@ class ServiceTestContract(TestCase):
         list_cd = list(ContractDetails.objects.filter(contract_id=contract_id).values('id'))
         for cd in list_cd:
             ContractContributionPlanDetails.objects.filter(contract_details__id=f"{cd['id']}").delete()
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        #ContractDetails.objects.filter(contract_id=contract_id).delete()
+        #Contract.objects.filter(id=contract_id).delete()
         self.assertEqual(
             expected_state, result_state
         )
@@ -288,8 +288,8 @@ class ServiceTestContract(TestCase):
             ph_insuree=ph_insuree_input
         )
         # tear down the test data
-        ContractDetails.objects.filter(contract_id=contract_id).delete()
-        Contract.objects.filter(id=contract_id).delete()
+        #ContractDetails.objects.filter(contract_id=contract_id).delete()
+        #Contract.objects.filter(id=contract_id).delete()
 
         self.assertEqual(
             True, response["success"]
@@ -346,7 +346,7 @@ class CalculationContractTest(TestCase):
         result_param = [param["name"] for param in result["parameters"]]
         result2_param = [param["name"] for param in result2["parameters"]]
         self.assertEqual(
-            (class_name, class_name2, ["income"], ["rate", "includeFamilly"]),
+            (class_name, class_name2, ["income"], ["rate", "includeFamily"]),
             (result["class"], result2["class"], result_param, result2_param)
         )
 
@@ -377,11 +377,12 @@ class CalculationContractTest(TestCase):
         # after creating contract - we can get contract details so as to get params
         # run calculation rules etc
         cd = ContractDetails.objects.filter(contract__id=response["data"]["id"]).first()
+        c = Contract.objects.filter(id=response["data"]["id"]).first()
         result_params = get_parameters("PolicyHolderInsuree", cd)
 
         # tear down the contract test data
-        ContractDetails.objects.filter(contract_id=response["data"]["id"]).delete()
-        Contract.objects.filter(id=response["data"]["id"]).delete()
+        #cd.delete()
+        #c.delete()
 
         # we want to assert name of param related to the contract details (should be 'income')
         # and also the value of contract (all contributions)

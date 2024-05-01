@@ -323,7 +323,7 @@ class ContractQueryTest(TestCase):
 
     def test_find_contract_by_contract_code_date_valid_from_gte(self):
         code = self.test_contract.code
-        date_valid_from = str(self.test_contract.date_valid_from) + 'T00:00:00'
+        date_valid_from = str(self.test_contract.date_valid_from.date()) + 'T00:00:00'
         id = self.test_contract.id
         query = F'''
         {{

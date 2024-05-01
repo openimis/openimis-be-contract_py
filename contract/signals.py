@@ -19,8 +19,8 @@ from insuree.models import InsureePolicy
 _contract_signal_params = ["contract", "user"]
 _contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service",
                                    "ccpd_service"]
-signal_contract = Signal(providing_args=_contract_signal_params)
-signal_contract_approve = Signal(providing_args=_contract_signal_params)
+signal_contract = Signal(_contract_signal_params)
+signal_contract_approve = Signal(_contract_signal_params)
 
 
 def on_contract_signal(sender, **kwargs):
@@ -52,17 +52,18 @@ def on_contract_approve_signal(sender, **kwargs):
     contract_to_approve.date_approved = now
     contract_to_approve.state = 5
     approved_contract = __save_or_update_contract(contract=contract_to_approve, user=user)
-    email_contact_name = contract_to_approve.policy_holder.contact_name["contactName"] \
-        if "contactName" in contract_to_approve.policy_holder.contact_name \
-        else contract_to_approve.policy_holder.contact_name
-    email = __send_email_notify_payment(
-        code=contract_to_approve.code,
-        name=contract_to_approve.policy_holder.trade_name,
-        contact_name=email_contact_name,
-        amount_due=contract_to_approve.amount_due,
-        payment_reference=contract_to_approve.payment_reference,
-        email=contract_to_approve.policy_holder.email,
-    )
+    if contract_to_approve.policy_holder.email:
+        email_contact_name = contract_to_approve.policy_holder.contact_name["contactName"] \
+            if (contract_to_approve.policy_holder.contact_name and "contactName" in contract_to_approve.policy_holder.contact_name) \
+            else contract_to_approve.policy_holder.trade_name or contract_to_approve.policy_holder.code
+        email = __send_email_notify_payment(
+            code=contract_to_approve.code,
+            name=contract_to_approve.policy_holder.trade_name,
+            contact_name=email_contact_name,
+            amount_due=contract_to_approve.amount_due,
+            payment_reference=contract_to_approve.payment_reference,
+            email=contract_to_approve.policy_holder.email,
+        )
     return approved_contract
 
 
@@ -76,6 +77,9 @@ def append_contract_filter(sender, **kwargs):
                 PolicyholderConfig.gql_query_payment_portal_perms):
             contract_id = additional_filter["contract"]
             contract_to_process = Contract.objects.filter(id=contract_id).first()
+
+            if not contract_to_process or not contract_to_process.policy_holder:
+                return Q(pk=-1)
             # check if user is linked to ph in policy holder user table
             type_user = f"{user}"
             # related to user object output (i) or (t)
@@ -83,12 +87,14 @@ def append_contract_filter(sender, **kwargs):
             if '(i)' in type_user:
                 from core import datetime
                 now = datetime.datetime.now()
+
                 ph_user = PolicyHolderUser.objects.filter(
                     Q(policy_holder__id=contract_to_process.policy_holder.id, user__id=user.id)
                 ).filter(
                     Q(date_valid_from=None) | Q(date_valid_from__lte=now),
                     Q(date_valid_to=None) | Q(date_valid_to__gte=now)
                 ).first()
+
                 if ph_user or user.has_perms(PaymentConfig.gql_query_payments_perms):
                     return Q(
                         payment_details__premium__contract_contribution_plan_details__contract_details__contract__id=contract_id
@@ -105,6 +111,8 @@ def append_contract_policy_insuree_filter(sender, **kwargs):
                 PolicyholderConfig.gql_query_insuree_policy_portal_perms):
             contract_id = additional_filter["contract"]
             contract_to_process = Contract.objects.filter(id=contract_id).first()
+            if not contract_to_process or not contract_to_process.policy_holder:
+                return Q(pk=-1)
             # check if user is linked to ph in policy holder user table
             type_user = f"{user}"
             # related to user object output (i) or (t)
@@ -118,16 +126,19 @@ def append_contract_policy_insuree_filter(sender, **kwargs):
                     Q(date_valid_from=None) | Q(date_valid_from__lte=now),
                     Q(date_valid_to=None) | Q(date_valid_to__gte=now)
                 ).first()
+
                 if ph_user or user.has_perms(InsureeConfig.gql_query_insuree_policy_perms):
                     policies = list(
                         ContractContributionPlanDetails.objects.filter(
                             contract_details__contract__id=contract_id).values_list("policy", flat=True)
                     )
+
                     return Q(
                         start_date__gte=contract_to_process.date_valid_from,
                         start_date__lte=contract_to_process.date_valid_to,
                         policy__in=policies
                     )
+
 
 
 # check if policy is related to formal sector contract
