@@ -34,6 +34,7 @@ from insuree.models import Insuree
 from dateutil.relativedelta import relativedelta
 
 from core.signals import *
+from core import datetimedelta
 
 import logging
 
@@ -86,14 +87,17 @@ class Contract(object):
                 # run services updateFromPHInsuree and Contract Valuation
                 cd = ContractDetails(user=self.user)
                 result_ph_insuree = cd.update_from_ph_insuree(contract_details={
-                    "policy_holder_id": contract["policy_holder_id"],
+                    "policy_holder_id": str(contract["policy_holder_id"]),
                     "contract_id": uuid_string,
                     "amendment": 0,
                 })
-                total_amount = self.evaluate_contract_valuation(
-                    contract_details_result=result_ph_insuree,
-                )["total_amount"]
-                c.amount_notified = total_amount
+                result_contract_valuation = self.contract_valuation(
+                    contract_details_list=result_ph_insuree["data"]
+                )
+                if not result_contract_valuation or result_contract_valuation["success"] is False:
+                    logger.error("contract valuation failed %s", str(result_contract_valuation))
+                    raise Exception("contract valuation failed " + str(result_contract_valuation))
+                c.amount_notified = result_contract_valuation['data']['total_amount']
             historical_record = c.history.all().last()
             c.json_ext = _save_json_external(
                 user_id=str(historical_record.user_updated.id),
@@ -107,18 +111,6 @@ class Contract(object):
             return _output_exception(model_name="Contract", method="create", exception=exc)
         return _output_result_success(dict_representation=dict_representation)
 
-    def evaluate_contract_valuation(self, contract_details_result, save=False):
-        ccpd = ContractContributionPlanDetails(user=self.user)
-        result_contract_valuation = ccpd.contract_valuation(
-            contract_contribution_plan_details={
-                "contract_details": contract_details_result["data"],
-                "save": save,
-            }
-        )
-        if not result_contract_valuation or result_contract_valuation["success"] is False:
-            logger.error("contract valuation failed %s", str(result_contract_valuation))
-            raise Exception("contract valuation failed " + str(result_contract_valuation))
-        return result_contract_valuation["data"]
 
     # TODO update contract scenario according to wiki page
     @check_authentication
@@ -195,17 +187,17 @@ class Contract(object):
 
             contract_id = f"{contract['id']}"
             contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
-            contract_details_list = {}
-            contract_details_list["data"] = self.__gather_policy_holder_insuree(
+            
+            contract_details_list = self.__gather_policy_holder_insuree(
                 self.__validate_submission(contract_to_submit=contract_to_submit),
                 contract_to_submit.amendment,
                 contract_date_valid_from=None,
             )
             # contract valuation
-            contract_contribution_plan_details = self.evaluate_contract_valuation(
-                contract_details_result=contract_details_list,
+            valuation_result = self.contract_valuation(
+                contract_details_list,
             )
-            contract_to_submit.amount_rectified = contract_contribution_plan_details["total_amount"]
+            contract_to_submit.amount_rectified = valuation_result['data']["total_amount"]
             # send signal
             contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
             signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
@@ -347,16 +339,13 @@ class Contract(object):
             # copy also contract details
             self.__copy_details(contract_id=contract_id, modified_contract=amended_contract)
             # evaluate amended contract amount notified
-            contract_details_list = {}
-            contract_details_list["data"] = self.__gather_policy_holder_insuree(
+       
+            contract_details_list = self.__gather_policy_holder_insuree(
                 list(ContractDetailsModel.objects.filter(contract_id=amended_contract.id).values()),
                 contract_to_amend.amendment,
             )
-            contract_contribution_plan_details = self.evaluate_contract_valuation(
-                contract_details_result=contract_details_list,
-                save=False
-            )
-            amended_contract.amount_notified = contract_contribution_plan_details["total_amount"]
+            valuation_result = self.contract_valuation(contract_details_list)
+            amended_contract.amount_notified = valuation_result['data']["total_amount"]
             if "amount_notified" in amended_contract.get_dirty_fields():
                 signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
             amended_contract_dict = model_to_dict(amended_contract)
@@ -507,10 +496,67 @@ class Contract(object):
             return _output_result_success(dict_representation=contract_output_list)
         except Exception as exc:
             return _output_exception(model_name="Contract", method="getNegativeAmountAmendment", exception=exc)
+    
+    
+    def contract_valuation(self, contract_details_list, save=False):
+        ccpd_service = ContractContributionPlanDetails(self.user)
+        try:
+            dict_representation = {}
+            total_amount = 0
+            amendment = 0
+            ccpd_record = []
+            for contract_details in contract_details_list:
+                cpbd_list = ContributionPlanBundleDetails.objects.filter(
+                    contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
+                )
+                amendment = contract_details["amendment"]
+                for cpbd in cpbd_list:
+                    ccpd = ContractContributionPlanDetailsModel(
+                        **{
+                            "contract_details_id": contract_details["id"],
+                            "contribution_plan_id": f"{cpbd.contribution_plan.id}",
+                            "policy_id": contract_details["policy_id"],
+                        }
+                    )   
+                    # value from strategy
+                    calculated_amount = 0
+                    calculated_amount = run_calculation_rules(ccpd, "value", self.user) or 0
+                    total_amount += calculated_amount
+                    
+                    if save:
+                        ccpd_record.extend(ccpd_service.split(ccpd, contract_details["insuree_id"], calculated_amount))
+                    else:
+                        record = model_to_dict(ccpd)
+                        record['calculated_amount'] = calculated_amount
+                        ccpd_record.append(record)
+
+                        
+            if amendment > 0:
+                # get the payment from the previous version of the contract
+                contract_detail_id = contract_details_list[0]["id"]
+                cd = ContractDetailsModel.objects.get(id=contract_detail_id)
+                contract_previous = ContractModel.objects.filter(
+                    Q(amendment=amendment - 1, code=cd.contract.code)
+                ).first()
+                premium = ContractContributionPlanDetailsModel.objects.filter(
+                    contract_details__contract__id=f'{contract_previous.id}'
+                ).first().contribution
+                payment_detail_contribution = PaymentDetail.objects.filter(premium=premium).first()
+                payment_id = payment_detail_contribution.payment.id
+                payment_object = Payment.objects.get(id=payment_id)
+                total_amount -= payment_object.received_amount if payment_object.received_amount else 0
+            dict_representation['total_amount'] = total_amount
+            dict_representation['contribution_plan_details'] = ccpd_record
+            return _output_result_success(dict_representation=dict_representation)
+        except Exception as exc:
+            return _output_exception(
+                model_name="ContractContributionPlanDetails",
+                method="contractValuation",
+                exception=exc
+            )
 
 
 class ContractDetails(object):
-
     def __init__(self, user):
         self.user = user
 
@@ -588,38 +634,79 @@ class ContractContributionPlanDetails(object):
         self.user = user
 
     @check_authentication
-    def create_ccpd(self, ccpd, insuree_id):
+    def split(self, ccpd, insuree_id, calculated_amount):
         """"
             method to create contract contribution plan details
         """
+        from core import datetime
+        date_valid_to = ccpd.date_valid_from + datetimedelta(months=ccpd.contribution_plan.periodicity)
+        date_valid_from = ccpd.date_valid_from
+        # get date from strategy
+        validity_dates = run_calculation_rules(
+            ccpd,
+            "validity",
+            self.user,
+            validity_from=date_valid_from,
+            validity_to=date_valid_to
+        )
+        
+        if validity_dates and 'effective_date' in validity_dates and validity_dates['effective_date']:
+            date_valid_from = validity_dates['effective_date']
+            
+        if validity_dates and 'expiry_date' in validity_dates and validity_dates['expiry_date']:
+            date_valid_to = validity_dates['expiry_date']
         # get the relevant policy from the related product of contribution plan
         # policy objects get all related to this product
         insuree = Insuree.objects.filter(id=insuree_id).first()
         policies = self.__get_policy(
             insuree=insuree,
-            date_valid_from=ccpd.date_valid_from,
-            date_valid_to=ccpd.date_valid_to,
-            product=ccpd.contribution_plan.benefit_plan,
+            date_valid_from=date_valid_from,
+            date_valid_to=date_valid_to,
+            product=ccpd.contribution_plan.benefit_plan
         )
-        return self.__create_contribution_from_policy(ccpd, policies)
-
-    def __create_contribution_from_policy(self, ccpd, policies):
-        if len(policies) == 1:
+        list_ccpd = []
+        amount_booked = 0
+        unit_amount = (calculated_amount / (date_valid_to - date_valid_from).days)
+        len_policies = len(policies)
+        if len_policies >= 1:
             ccpd.policy = policies[0]
-            ccpd.save(username=self.user.username)
-            return [ccpd]
-        else:
+            
+            ccpd.date_valid_from = max(
+                datetime.datetime.fromordinal(policies[0].effective_date.toordinal()), 
+                date_valid_from)
+            ccpd.date_valid_to = min(
+                datetime.datetime.fromordinal(policies[0].expiry_date.toordinal()),
+                date_valid_to)
+            ccpd.save(user=self.user)
+            record = model_to_dict(ccpd)
+            record['id'] = ccpd.id
+            amount = round((ccpd.date_valid_to - ccpd.date_valid_from).days * unit_amount)
+            amount_booked += amount
+            record['calculated_amount'] = amount
+            list_ccpd.append(record)
+        
+        if len_policies > 1:
+            i = 1 
+            for policy in policies[1:]:
             # create second ccpd because another policy was created - copy object and save
-            ccpd_new = copy(ccpd)
-            ccpd_new.date_valid_from = ccpd.date_valid_from
-            ccpd_new.date_valid_to = policies[0].expiry_date
-            ccpd_new.policy = policies[0]
-            ccpd.date_valid_from = policies[0].expiry_date
-            ccpd.date_valid_to = ccpd.date_valid_to
-            ccpd.policy = policies[1]
-            ccpd_new.save(username=self.user.username)
-            ccpd.save(username=self.user.username)
-            return [ccpd_new, ccpd]
+                i += 1
+                ccpd_new = copy(ccpd)
+                ccpd_new.date_valid_from = max(policy.effective_date, date_valid_from)
+                ccpd_new.date_valid_to = min(policy.expiry_date, date_valid_to)
+                ccpd_new.policy = policy
+                ccpd_new.save(usern=self.user.user)
+                record = model_to_dict(ccpd_new)
+                record['id'] = ccpd_new.id
+                record['calculated_amount'] = amount
+                if ccpd_new.date_valid_to == date_valid_to:
+                    record['calculated_amount'] = calculated_amount - amount_booked
+                else:
+                    amount = (ccpd_new.date_valid_to - ccpd_new.date_valid_from).days * unit_amount
+                    amount_booked += amount
+                    record['calculated_amount'] = amount
+                list_ccpd.append(record)
+                
+        return list_ccpd
 
     def __get_policy(self, insuree, date_valid_from, date_valid_to, product):
         from core import datetime
@@ -689,117 +776,8 @@ class ContractContributionPlanDetails(object):
             policy_output.append(cur_policy)
         return policy_output, last_date_covered
 
-    @check_authentication
-    def contract_valuation(self, contract_contribution_plan_details):
-        try:
-            dict_representation = {}
-            ccpd_list = []
-            total_amount = 0
-            amendment = 0
-            for contract_details in contract_contribution_plan_details["contract_details"]:
-                cpbd_list = ContributionPlanBundleDetails.objects.filter(
-                    contribution_plan_bundle__id=str(contract_details["contribution_plan_bundle"])
-                )
-                amendment = contract_details["amendment"]
-                for cpbd in cpbd_list:
-                    ccpd = ContractContributionPlanDetailsModel(
-                        **{
-                            "contract_details_id": contract_details["id"],
-                            "contribution_plan_id": f"{cpbd.contribution_plan.id}",
-                            "policy_id": contract_details["policy_id"],
-                        }
-                    )
-                    # rc - result of calculation
-                    calculated_amount = 0
-                    rc = run_calculation_rules(ccpd, "create", self.user)
-                    if rc:
-                        calculated_amount = rc[0][1] if rc[0][1] not in [None, False] else 0
-                        total_amount += calculated_amount
-                    ccpd_record = model_to_dict(ccpd)
-                    ccpd_record["calculated_amount"] = calculated_amount
-                    if contract_contribution_plan_details["save"]:
-                        ccpd_list, total_amount, ccpd_record = self.__append_contract_cpd_to_list(
-                            ccpd=ccpd,
-                            cp=cpbd.contribution_plan,
-                            date_valid_from=contract_details["contract_date_valid_from"],
-                            insuree_id=contract_details["insuree_id"],
-                            total_amount=total_amount,
-                            calculated_amount=calculated_amount,
-                            ccpd_list=ccpd_list,
-                            ccpd_record=ccpd_record
-                        )
-                    if "id" not in ccpd_record:
-                        ccpd_list.append(ccpd_record)
-            if amendment > 0:
-                # get the payment from the previous version of the contract
-                contract_detail_id = contract_contribution_plan_details["contract_details"][0]["id"]
-                cd = ContractDetailsModel.objects.get(id=contract_detail_id)
-                contract_previous = ContractModel.objects.filter(
-                    Q(amendment=amendment - 1, code=cd.contract.code)
-                ).first()
-                premium = ContractContributionPlanDetailsModel.objects.filter(
-                    contract_details__contract__id=f'{contract_previous.id}'
-                ).first().contribution
-                payment_detail_contribution = PaymentDetail.objects.filter(premium=premium).first()
-                payment_id = payment_detail_contribution.payment.id
-                payment_object = Payment.objects.get(id=payment_id)
-                received_amount = payment_object.received_amount if payment_object.received_amount else 0
-                total_amount = float(total_amount) - float(received_amount)
-            dict_representation['total_amount'] = total_amount
-            dict_representation['contribution_plan_details'] = ccpd_list
-            return _output_result_success(dict_representation=dict_representation)
-        except Exception as exc:
-            return _output_exception(
-                model_name="ContractContributionPlanDetails",
-                method="contractValuation",
-                exception=exc
-            )
 
-    def __append_contract_cpd_to_list(self, ccpd, cp, date_valid_from, insuree_id, total_amount,
-                                      calculated_amount, ccpd_list, ccpd_record):
-        """helper private function to gather results to the list
-           ccpd - contract contribution plan details
-           cp - contribution plan
-           return ccpd list and total amount
-        """
-        from core import datetime, datetimedelta
-        # TODO - catch grace period from calculation rule if is defined
-        #  grace_period = cp.calculation_rule etc
-        #  length = cp.get_contribution_length(grace_period)
-        length = cp.get_contribution_length()
-        ccpd.date_valid_from = date_valid_from
-        ccpd.date_valid_to = date_valid_from + datetimedelta(months=length)
-        # TODO: calculate the number of CCPD to create in order to cover the contract lenght
-        ccpd_results = self.create_ccpd(ccpd, insuree_id)
-        ccpd_record = model_to_dict(ccpd)
-        ccpd_record["calculated_amount"] = calculated_amount
-        # TODO: support more that 2 CCPD
-        # case 1 - single contribution
-        if len(ccpd_results) == 1:
-            uuid_string = f"{ccpd_results[0].id}"
-            ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
-            ccpd_list.append(ccpd_record)
-        # case 2 - 2 contributions with 2 policies
-        else:
-            # there is additional contribution - we have to calculate/recalculate
-            total_amount = total_amount - calculated_amount
-            for ccpd_result in ccpd_results:
-                length_ccpd = float((ccpd_result.date_valid_to.year - ccpd_result.date_valid_from.year) * 12 \
-                                    + (ccpd_result.date_valid_to.month - ccpd_result.date_valid_from.month))
-                periodicity = float(ccpd_result.contribution_plan.periodicity)
-                # time part of splited as a fraction to count contribution value for that splited period properly
-                part_time_period = length_ccpd / periodicity
-                # rc - result calculation
-                rc = run_calculation_rules(ccpd, "update", self.user)
-                if rc:
-                    calculated_amount = rc[0][1] * part_time_period if rc[0][1] not in [None, False] else 0
-                    total_amount += calculated_amount
-                ccpd_record = model_to_dict(ccpd_result)
-                ccpd_record["calculated_amount"] = calculated_amount
-                uuid_string = f"{ccpd_result.id}"
-                ccpd_record['id'], ccpd_record['uuid'] = (uuid_string, uuid_string)
-                ccpd_list.append(ccpd_record)
-        return ccpd_list, total_amount, ccpd_record
+
 
     @check_authentication
     def create_contribution(self, contract_contribution_plan_details):
@@ -811,7 +789,7 @@ class ContractContributionPlanDetails(object):
             for ccpd in contract_contribution_plan_details["contribution_plan_details"]:
                 contract_details = ContractDetailsModel.objects.get(id=f"{ccpd['contract_details']}")
                 # create the contributions based on the ContractContributionPlanDetails
-                if ccpd["contribution"] is None:
+                if ccpd["contribution"] is None and ccpd["calculated_amount"] > 0 :
                     contribution = Premium.objects.create(
                         **{
                             "policy_id": ccpd["policy"],
@@ -877,7 +855,6 @@ class PaymentService(object):
                 exception=exc
             )
 
-    @check_authentication
     def collect_payment_details(self, contract_contribution_plan_details):
         payment_details_data = []
         for ccpd in contract_contribution_plan_details:

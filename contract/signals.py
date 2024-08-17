@@ -15,6 +15,7 @@ from policy.signals import signal_check_formal_sector_for_policy
 from policyholder.apps import PolicyholderConfig
 from policyholder.models import PolicyHolderUser
 from insuree.models import InsureePolicy
+from calculation.services import run_calculation_rules
 
 _contract_signal_params = ["contract", "user"]
 _contract_approve_signal_params = ["contract", "user", "contract_details_list", "service_object", "payment_service",
@@ -32,6 +33,7 @@ def on_contract_signal(sender, **kwargs):
 
 def on_contract_approve_signal(sender, **kwargs):
     # approve scenario
+
     user = kwargs["user"]
     contract_to_approve = kwargs["contract"]
     contract_details_list = kwargs["contract_details_list"]
@@ -39,13 +41,13 @@ def on_contract_approve_signal(sender, **kwargs):
     payment_service = kwargs["payment_service"]
     ccpd_service = kwargs["ccpd_service"]
     # contract valuation
-    contract_contribution_plan_details = contract_service.evaluate_contract_valuation(
-        contract_details_result=contract_details_list,
+    contract_contribution_plan_details = contract_service.contract_valuation(
+        contract_details_list['data'],
         save=True
     )
-    contract_to_approve.amount_due = contract_contribution_plan_details["total_amount"]
-    result = ccpd_service.create_contribution(contract_contribution_plan_details)
-    result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details)
+    contract_to_approve.amount_due = contract_contribution_plan_details['data']["total_amount"]
+    result = ccpd_service.create_contribution(contract_contribution_plan_details['data'])
+    result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details['data'])
     # STATE_EXECUTABLE
     from core import datetime
     now = datetime.datetime.now()
@@ -196,20 +198,19 @@ def activate_contracted_policies(sender, instance, **kwargs):
                         # TODO support Splitted payment and check that
                         #  the payment match the value of all contributions
                         for ccpd in ccpd_list:
-                            insuree = ccpd.contract_details.insuree
-                            pi = InsureePolicy.objects.create(
-                                **{
-                                    "insuree": insuree,
-                                    "policy": ccpd.policy,
-                                    "enrollment_date": ccpd.date_valid_from,
-                                    "start_date": ccpd.date_valid_from,
-                                    "effective_date": ccpd.date_valid_from,
-                                    "expiry_date": ccpd.date_valid_to + datetimedelta(
-                                        ccpd.contribution_plan.get_contribution_length()
-                                    ),
-                                    "audit_user_id": -1,
-                                }
-                            )
+                            members = run_calculation_rules(ccpd, "members", contract.user_updated)
+                            for insuree in members:               
+                                InsureePolicy.objects.create(
+                                    **{
+                                        "insuree": insuree,
+                                        "policy": ccpd.policy,
+                                        "enrollment_date": ccpd.date_valid_from,
+                                        "start_date": ccpd.date_valid_from,
+                                        "effective_date": ccpd.date_valid_from,
+                                        "expiry_date": ccpd.date_valid_to,
+                                        "audit_user_id": -1,
+                                    }
+                                )
                         contract.state = Contract.STATE_EFFECTIVE
                         __save_or_update_contract(contract, contract.user_updated)
 

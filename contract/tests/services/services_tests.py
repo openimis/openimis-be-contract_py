@@ -331,18 +331,18 @@ class CalculationContractTest(TestCase):
     def test_get_rule_name(self):
         class_name = "ContractDetails"
         result = get_rule_name(class_name=class_name)
-        self.assertEqual("ContributionValuationRule", result[0][1].__name__)
+        self.assertEqual("ContributionValuationRule", result[0].__name__)
 
     def test_get_rule_not_existing(self):
         class_name = "xxxxxxxxxxxxxxxxxxx"
         result = get_rule_name(class_name=class_name)
-        self.assertEqual(None, result[0][1])
+        self.assertEqual([], result)
 
     def test_get_rule_details(self):
         class_name = "PolicyHolderInsuree"
         class_name2 = "ContributionPlan"
-        result = get_rule_details(class_name=class_name)[0][1]
-        result2 = get_rule_details(class_name=class_name2)[0][1]
+        result = get_rule_details(class_name=class_name)
+        result2 = get_rule_details(class_name=class_name2)
         result_param = [param["name"] for param in result["parameters"]]
         result2_param = [param["name"] for param in result2["parameters"]]
         self.assertEqual(
@@ -353,15 +353,15 @@ class CalculationContractTest(TestCase):
     def test_get_rule_details_not_existing(self):
         class_name = "xxxxxxxxxxxxxxx"
         result = get_rule_details(class_name=class_name)
-        self.assertEqual(None, result[0][1])
+        self.assertEqual({}, result)
 
     def test_get_linked_class_empty(self):
         result = get_linked_class()
-        self.assertEqual(['Calculation'], result[0][1])
+        self.assertEqual(['Calculation'], result)
 
     def test_get_linked_class(self):
         result = get_linked_class(["PolicyHolderInsuree"])
-        self.assertEqual(['PolicyHolder', 'Insuree', 'ContributionPlanBundle', 'Policy'], result[0][1])
+        self.assertEqual(sorted(['PolicyHolder', 'Insuree', 'ContributionPlanBundle', 'Policy']), sorted(result))
 
     def test_get_param_and_amount_calculation(self):
         # create contract to test 1st calculation rule contribution valuation
@@ -390,5 +390,5 @@ class CalculationContractTest(TestCase):
         # income*rate*number of contributions = according to Contribution Valuation Rule
         self.assertEqual(
             ("income", self.income * (float(self.rate / 100)) * self.number_of_insuree),
-            (result_params[0][1][0]["name"], response["data"]["amount_notified"])
+            (result_params[0]["name"], response["data"]["amount_notified"])
         )

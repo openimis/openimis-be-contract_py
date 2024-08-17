@@ -126,7 +126,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
             "policyHolderId": str(self.policy_holder.id),
             "clientMutationId": str(uuid.uuid4())
         }
-        content=self.send_mutation("createContract", input_param, self.user_token )        
+        content = self.send_mutation("createContract", input_param, self.user_token )        
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         del input_param["clientMutationId"]
         result = self.find_by_exact_attributes_query(
