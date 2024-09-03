@@ -83,7 +83,7 @@ def create_test_contract_contribution_plan_details(contribution_plan=None, polic
                 "receipt": "Test receipt",
                 "pay_date": "2019-01-01",
                 "validity_from": "2019-01-01",
-                "audit_user_id": -1,
+                "audit_user_id": 1,
                 "pay_type": 'C'
             }
         )
