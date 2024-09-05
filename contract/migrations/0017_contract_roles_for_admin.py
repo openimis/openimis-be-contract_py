@@ -8,13 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 def add_rights(apps, schema_editor):
-    insert_role_right_for_system(64, 152101)  # contract search
-    insert_role_right_for_system(64, 152102)  # contract create
-    insert_role_right_for_system(64, 152103)  # contract update
-    insert_role_right_for_system(64, 152104)  # contract delete
-    insert_role_right_for_system(64, 152106)  # contract renew
-    insert_role_right_for_system(64, 152107)  # contract submit
-    insert_role_right_for_system(64, 152108)  # contract approve
+    insert_role_right_for_system(64, 152101, apps)  # contract search
+    insert_role_right_for_system(64, 152102, apps)  # contract create
+    insert_role_right_for_system(64, 152103, apps)  # contract update
+    insert_role_right_for_system(64, 152104, apps)  # contract delete
+    insert_role_right_for_system(64, 152106, apps)  # contract renew
+    insert_role_right_for_system(64, 152107, apps)  # contract submit
+    insert_role_right_for_system(64, 152108, apps)  # contract approve
 
 
 class Migration(migrations.Migration):

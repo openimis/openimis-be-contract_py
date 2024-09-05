@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def add_rights(apps, schema_editor):
-    insert_role_right_for_system(256, 152109)  # contract approve
+    insert_role_right_for_system(256, 152109, apps)  # contract approve
 
 
 class Migration(migrations.Migration):
