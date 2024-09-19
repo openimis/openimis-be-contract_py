@@ -343,11 +343,11 @@ class CalculationContractTest(TestCase):
         class_name2 = "ContributionPlan"
         result = get_rule_details(class_name=class_name)
         result2 = get_rule_details(class_name=class_name2)
-        result_param = [param["name"] for param in result["parameters"]]
-        result2_param = [param["name"] for param in result2["parameters"]]
+        result_param = [param['name'] for param in result[class_name]]
+        result2_param = [param['name'] for param in result2[class_name2]]
         self.assertEqual(
             (class_name, class_name2, ["income"], ["rate", "includeFamily"]),
-            (result["class"], result2["class"], result_param, result2_param)
+            (list(result.keys())[0], list(result2.keys())[0], result_param, result2_param)
         )
 
     def test_get_rule_details_not_existing(self):
