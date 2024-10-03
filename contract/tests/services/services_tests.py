@@ -2,7 +2,7 @@ from django.test import TestCase
 from contract.services import Contract as ContractService, ContractDetails as ContractDetailsService, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsService
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
-from core.test_helpers import create_test_technical_user
+from core.test_helpers import create_test_interactive_user
 from policyholder.tests.helpers import create_test_policy_holder, create_test_policy_holder_insuree
 from contribution_plan.tests.helpers import create_test_contribution_plan, \
     create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
@@ -19,7 +19,7 @@ class ServiceTestContract(TestCase):
         super(ServiceTestContract, cls).setUpClass()
         cls.user = User.objects.filter(username='admin').first()
         if not cls.user:
-            cls.user = create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
+            cls.user = create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.contract_service = ContractService(cls.user)
         cls.contract_details_service = ContractDetailsService(cls.user)
         cls.contract_contribution_plan_details_service = ContractContributionPlanDetailsService(cls.user)
@@ -304,7 +304,7 @@ class CalculationContractTest(TestCase):
         super(CalculationContractTest, cls).setUpClass()
         cls.user = User.objects.filter(username='admin').first()
         if not cls.user:
-            cls.user = create_test_technical_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
+            cls.user = create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
         cls.contract_service = ContractService(cls.user)
         cls.income = 500
         cls.rate = 5
