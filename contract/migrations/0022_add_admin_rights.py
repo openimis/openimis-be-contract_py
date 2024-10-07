@@ -8,12 +8,12 @@ from core.utils import insert_role_right_for_system, remove_role_right_for_syste
 logger = logging.getLogger(__name__)
 
 def add_rights(apps, schema_editor):
-    insert_role_right_for_system(64, 101500, apps)  # new right 1
-    insert_role_right_for_system(64, 154901, apps)  # new right 2
+    insert_role_right_for_system(64, 101500, apps)
+    insert_role_right_for_system(64, 154901, apps)
 
 def remove_rights(apps, schema_editor):
-    remove_role_right_for_system(64, 101500, apps)  # remove right 1
-    remove_role_right_for_system(64, 154901, apps)  # remove right 2
+    remove_role_right_for_system(64, 101500, apps)
+    remove_role_right_for_system(64, 154901, apps)
 
 class Migration(migrations.Migration):
 
