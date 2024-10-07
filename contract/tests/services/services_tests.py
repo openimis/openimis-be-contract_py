@@ -19,7 +19,7 @@ class ServiceTestContract(TestCase):
         super(ServiceTestContract, cls).setUpClass()
         cls.user = User.objects.filter(username='admin').first()
         if not cls.user:
-            cls.user = create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
+            cls.user = create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™')
         cls.contract_service = ContractService(cls.user)
         cls.contract_details_service = ContractDetailsService(cls.user)
         cls.contract_contribution_plan_details_service = ContractContributionPlanDetailsService(cls.user)
@@ -304,7 +304,7 @@ class CalculationContractTest(TestCase):
         super(CalculationContractTest, cls).setUpClass()
         cls.user = User.objects.filter(username='admin').first()
         if not cls.user:
-            cls.user = create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™', super_user=True)
+            cls.user = create_test_interactive_user(username='admin', password='S\/pe®Pąßw0rd™')
         cls.contract_service = ContractService(cls.user)
         cls.income = 500
         cls.rate = 5
