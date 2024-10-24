@@ -9,6 +9,7 @@ from contribution_plan.tests.helpers import create_test_contribution_plan, \
 from policy.test_helpers import create_test_policy
 from core.models import User
 from calculation.services import get_parameters, get_rule_details, get_rule_name, get_linked_class
+import datetime
 
 
 class ServiceTestContract(TestCase):
@@ -29,6 +30,9 @@ class ServiceTestContract(TestCase):
         cls.number_of_insuree = 5
         cls.policy_holder = create_test_policy_holder()
         cls.policy_holder2 = create_test_policy_holder()
+        cls.time_stamp = datetime.datetime.now()
+        cls.date_from = str((cls.time_stamp + datetime.timedelta(days=30)).date())
+        cls.date_to = str((cls.time_stamp + datetime.timedelta(days=60)).date())
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
@@ -38,7 +42,6 @@ class ServiceTestContract(TestCase):
             contribution_plan=cls.contribution_plan,
             contribution_plan_bundle=cls.contribution_plan_bundle
         )
-        from core import datetime
         # create policy holder insuree for that test policy holder
         for i in range(0, cls.number_of_insuree):
             ph_insuree = create_test_policy_holder_insuree(
@@ -60,7 +63,9 @@ class ServiceTestContract(TestCase):
 
     def test_contract_create_without_policy_holder(self):
         contract = {
-            'code': 'AAAAAA',
+            "code": "AAAAAA",
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.create(contract)
         # tear down the test data
@@ -86,8 +91,10 @@ class ServiceTestContract(TestCase):
 
     def test_contract_create_with_policy_holder(self):
         contract = {
-            'code': 'TESTONE',
-            'policy_holder_id': self.policy_holder.id
+            "code": 'TESTONE',
+            'policy_holder_id': self.policy_holder.id,
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.create(contract)
         # tear down the test data
@@ -112,8 +119,10 @@ class ServiceTestContract(TestCase):
 
     def test_contract_create_update_delete_with_policy_holder(self):
         contract = {
-            "code": "CTSV",
-            "policy_holder_id": str(self.policy_holder.id)
+            "code": 'CTSV',
+            'policy_holder_id': self.policy_holder.id,
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -121,6 +130,8 @@ class ServiceTestContract(TestCase):
         contract = {
             "id": contract_id,
             "payment_reference": "payment_one xxxxxxxx",
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.update(contract)
         updated_payment_reference = response['data']['payment_reference']
@@ -142,9 +153,12 @@ class ServiceTestContract(TestCase):
 
     def test_contract_create_update_failed_ph(self):
         contract = {
-            "code": "CSTG",
-            "policy_holder_id": str(self.policy_holder.id)
+            "code": 'CSTG',
+            'policy_holder_id': self.policy_holder.id,
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
+
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
 
@@ -165,9 +179,12 @@ class ServiceTestContract(TestCase):
 
     def test_contract_create_submit_fail_scenarios(self):
         contract = {
-            "code": "MTD",
-            "policy_holder_id": str(self.policy_holder.id)
+            "code": 'MTD',
+            'policy_holder_id': self.policy_holder.id,
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
+        
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
 
@@ -218,7 +235,9 @@ class ServiceTestContract(TestCase):
     def test_contract_create_submit_counter(self):
         contract = {
             "code": "SUR",
-            "policy_holder_id": str(self.policy_holder.id)
+            "policy_holder_id": str(self.policy_holder.id),
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -247,8 +266,8 @@ class ServiceTestContract(TestCase):
         contract = {
             "code": "TESTCON",
             "policy_holder_id": str(self.policy_holder.id),
-            "date_valid_from": datetime.datetime(2021, 1, 1),
-            "date_valid_to": datetime.datetime(2023, 6, 30),
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -276,8 +295,8 @@ class ServiceTestContract(TestCase):
         contract = {
             "code": "MTEST-1",
             "policy_holder_id": str(self.policy_holder.id),
-            "date_valid_from": datetime.datetime(2021, 1, 1),
-            "date_valid_to": datetime.datetime(2023, 6, 30),
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
         response = self.contract_service.create(contract)
         contract_id = str(response["data"]["id"])
@@ -310,6 +329,9 @@ class CalculationContractTest(TestCase):
         cls.rate = 5
         cls.number_of_insuree = 5
         cls.policy_holder = create_test_policy_holder()
+        cls.time_stamp = datetime.datetime.now()
+        cls.date_from = str((cls.time_stamp + datetime.timedelta(days=30)).date())
+        cls.date_to = str((cls.time_stamp + datetime.timedelta(days=60)).date())
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
@@ -361,7 +383,10 @@ class CalculationContractTest(TestCase):
 
     def test_get_linked_class(self):
         result = get_linked_class(["PolicyHolderInsuree"])
-        self.assertEqual(sorted(['PolicyHolder', 'Insuree', 'ContributionPlanBundle', 'Policy']), sorted(result))
+        self.assertEqual(
+            sorted(['PolicyHolder', 'Insuree', 'ContributionPlanBundle', 'Policy', 'Calculation']),
+            sorted(result)
+        )
 
     def test_get_param_and_amount_calculation(self):
         # create contract to test 1st calculation rule contribution valuation
@@ -370,13 +395,16 @@ class CalculationContractTest(TestCase):
         # by getting param name
         contract = {
             'code': 'CALTEST',
-            'policy_holder_id': self.policy_holder.id
+            'policy_holder_id': self.policy_holder.id,
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
         }
 
         response = self.contract_service.create(contract)
+        self.assertTrue(response['success'])
         # after creating contract - we can get contract details so as to get params
         # run calculation rules etc
-        cd = ContractDetails.objects.filter(contract__id=response["data"]["id"]).first()
+        cd = ContractDetails.objects.filter(contract_id=response["data"]["id"]).first()
         c = Contract.objects.filter(id=response["data"]["id"]).first()
         result_params = get_parameters("PolicyHolderInsuree", cd)
 
@@ -392,3 +420,20 @@ class CalculationContractTest(TestCase):
             ("income", self.income * (float(self.rate / 100)) * self.number_of_insuree),
             (result_params[0]["name"], response["data"]["amount_notified"])
         )
+
+    def test_no_deatils(self):
+        # create contract to test 1st calculation rule contribution valuation
+        # test case - create contract and check if amount is calcutated properly
+        # and test if on instance of contract details the proper params is showed
+        # by getting param name
+        contract = {
+            'code': 'CALTEST',
+            'policy_holder_id': self.policy_holder.id,
+            "date_valid_from": datetime.date(2017, 1, 1),
+            "date_valid_to": datetime.date(2017, 1, 31),
+        }
+
+        response = self.contract_service.create(contract)
+        self.assertTrue(response['success'])
+        cd = ContractDetails.objects.filter(contract_id=response["data"]["id"]).first()
+        self.assertIsNone(cd, 'the contract should not have any detail as there is no insuree valid at this time')

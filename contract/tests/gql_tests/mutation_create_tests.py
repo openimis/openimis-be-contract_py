@@ -3,14 +3,24 @@ from unittest import mock
 from django.test import TestCase
 
 import graphene
-from contract.tests.helpers import *
+from contract.tests.helpers import (
+    create_test_contract,
+    
+)
+from policy.test_helpers import create_test_policy
 from contract.models import Contract, ContractDetails
-from core.models import TechnicalUser
+from core.models import TechnicalUser, User
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
 from core.test_helpers import create_test_interactive_user
-from policyholder.tests.helpers import *
-from contribution_plan.tests.helpers import create_test_contribution_plan, \
-    create_test_contribution_plan_bundle, create_test_contribution_plan_bundle_details
+from policyholder.tests.helpers import (
+    create_test_policy_holder,
+    create_test_policy_holder_insuree
+)
+from contribution_plan.tests.helpers import (
+    create_test_contribution_plan, 
+    create_test_contribution_plan_bundle, 
+    create_test_contribution_plan_bundle_details
+)
 from contract import schema as contract_schema
 from graphene import Schema
 from graphene.test import Client
@@ -19,7 +29,7 @@ from django.conf import settings
 import json
 import uuid
 from graphql_jwt.shortcuts import get_token
-
+import datetime
 
 class MutationTestContract(openIMISGraphQLTestCase):
     GRAPHQL_URL = f'/{settings.SITE_ROOT()}graphql'
@@ -27,9 +37,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
     # is shown as an error in the IDE, so leaving it as True.
     GRAPHQL_SCHEMA = True
     admin_user = None
-    schema = Schema(
-            query=contract_schema.Query,
-    )
+    schema = Schema(query=contract_schema.Query)
 
     class BaseTestContext:
         def __init__(self, user):
@@ -43,15 +51,17 @@ class MutationTestContract(openIMISGraphQLTestCase):
         super(MutationTestContract, cls).setUpClass()
         cls.user = User.objects.filter(username='admin', i_user__isnull=False).first()
         if not cls.user:
-            cls.user=create_test_interactive_user(username='admin')
+            cls.user = create_test_interactive_user(username='admin')
         # some test data so as to created contract properly
         cls.user_token = get_token(cls.user, cls.BaseTestContext(user=cls.user))
-
         cls.income = 500
         cls.rate = 5
         cls.number_of_insuree = 2
         cls.policy_holder = create_test_policy_holder()
         cls.policy_holder2 = create_test_policy_holder()
+        cls.time_stamp = datetime.datetime.now()
+        cls.date_from = str((cls.time_stamp + datetime.timedelta(days=30)).date())
+        cls.date_to = str((cls.time_stamp + datetime.timedelta(days=60)).date())
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
@@ -61,7 +71,6 @@ class MutationTestContract(openIMISGraphQLTestCase):
             contribution_plan=cls.contribution_plan,
             contribution_plan_bundle=cls.contribution_plan_bundle
         )
-        from core import datetime
         # create policy holder insuree for that test policy holder
         for i in range(0, cls.number_of_insuree):
             ph_insuree = create_test_policy_holder_insuree(
@@ -97,11 +106,13 @@ class MutationTestContract(openIMISGraphQLTestCase):
         cls.graph_client = Client(cls.schema)
 
     def test_mutation_contract_create_without_policy_holder(self):
-        time_stamp = datetime.datetime.now()
+        
         input_param = {
-            "code": "XYZ:" + str(time_stamp),
+            "code": "XYZ:" + str(self.time_stamp),
+            "dateValidFrom": self.date_from,
+            "dateValidTo": self.date_to,
         }
-        self.add_mutation("createContract", input_param,  self.user_token )
+        self.add_mutation("createContract", input_param, self.user_token)
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
@@ -111,22 +122,22 @@ class MutationTestContract(openIMISGraphQLTestCase):
         #Contract.objects.filter(id=str(converted_id)).delete()
         self.assertEqual(
             (
-                "XYZ:" + str(time_stamp),
-            )
-            ,
+                "XYZ:" + str(self.time_stamp),
+            ),
             (
                 result[0]['node']['code'],
             )
         )
 
     def test_mutation_contract_create_with_policy_holder(self):
-        time_stamp = datetime.datetime.now()
         input_param = {
-            "code": "XYZ:" + str(time_stamp),
+            "code": "XYZ:" + str(self.time_stamp),
             "policyHolderId": str(self.policy_holder.id),
-            "clientMutationId": str(uuid.uuid4())
+            "clientMutationId": str(uuid.uuid4()),
+            "dateValidFrom": self.date_from,
+            "dateValidTo": self.date_to,
         }
-        content = self.send_mutation("createContract", input_param, self.user_token )        
+        content = self.send_mutation("createContract", input_param, self.user_token)        
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         del input_param["clientMutationId"]
         result = self.find_by_exact_attributes_query(
@@ -134,29 +145,28 @@ class MutationTestContract(openIMISGraphQLTestCase):
             params=input_param,
         )["edges"]
         converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
-
         # SUBMIT
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        content=self.send_mutation("submitContract", input_param, self.user_token )        
+        content = self.send_mutation("submitContract", input_param, self.user_token)        
         content = self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
 
         # COUNTER
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        content=self.send_mutation("counterContract", input_param, self.user_token )        
+        content = self.send_mutation("counterContract", input_param, self.user_token)        
 
         content = self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
 
         # reSUBMIT
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        content=self.send_mutation("submitContract", input_param, self.user_token )        
+        content = self.send_mutation("submitContract", input_param, self.user_token)        
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         # Approve
         input_param = {'id': converted_id,
             "clientMutationId": str(uuid.uuid4())}
-        content=self.send_mutation("approveContract", input_param, self.user_token )        
+        content = self.send_mutation("approveContract", input_param, self.user_token)        
 
         self.assertEqual(content['data']['mutationLogs']['edges'][0]['node']['status'], 2)
         

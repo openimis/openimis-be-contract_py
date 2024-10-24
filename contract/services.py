@@ -3,13 +3,12 @@ import uuid
 import traceback
 from django.conf import settings
 from copy import copy
-
+from django.utils.translation import gettext as _
 from django.core.exceptions import ValidationError
 
 from .config import get_message_counter_contract
 
 from django.db.models.query import Q
-from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.mail import send_mail, BadHeaderError
@@ -22,7 +21,7 @@ from contract.models import Contract as ContractModel, \
     ContractContributionPlanDetails as ContractContributionPlanDetailsModel
 from calculation.services import run_calculation_rules
 
-from policyholder.models import PolicyHolderInsuree
+from policyholder.models import PolicyHolderInsuree, PolicyHolder
 from contribution.models import Premium
 from contribution_plan.models import ContributionPlanBundleDetails, ContributionPlan
 
@@ -33,8 +32,9 @@ from insuree.models import Insuree
 
 from dateutil.relativedelta import relativedelta
 
-from core.signals import *
+from core.signals import register_service_signal
 from core import datetimedelta
+from core.utils import filter_validity
 
 import logging
 
@@ -75,34 +75,37 @@ class Contract(object):
         try:
             incoming_code = contract.get('code')
             if check_unique_code(incoming_code):
-                raise ValidationError(("Contract code %s already exists" % incoming_code))
+                raise ValidationError(_("Contract code %s already exists" % incoming_code))
             if not self.user.has_perms(ContractConfig.gql_mutation_create_contract_perms):
-                raise PermissionError("Unauthorized")
+                raise PermissionError(_("Unauthorized"))
+            if (
+                not contract.get('date_valid_to', None) or
+                not contract.get('date_valid_from', None)
+            ):
+                raise Exception(_("contract.mandatory_fields.date_valid"))
             c = ContractModel(**contract)
+            if c.date_valid_to < c.date_valid_from:
+                raise Exception(_("contract.validation.date_valid"))
             c.state = ContractModel.STATE_DRAFT
             c.save(username=self.user.username)
             uuid_string = f"{c.id}"
             # check if the PH is set
-            if "policy_holder_id" in contract:
+            if c.policy_holder:
                 # run services updateFromPHInsuree and Contract Valuation
-                cd = ContractDetails(user=self.user)
-                result_ph_insuree = cd.update_from_ph_insuree(contract_details={
-                    "policy_holder_id": str(contract["policy_holder_id"]),
-                    "contract_id": uuid_string,
-                    "amendment": 0,
-                })
+                cd_service = ContractDetails(user=self.user)
+                result_ph_insuree = cd_service.update_from_ph_insuree(contract=c)
                 result_contract_valuation = self.contract_valuation(
                     contract_details_list=result_ph_insuree["data"]
                 )
                 if not result_contract_valuation or result_contract_valuation["success"] is False:
-                    logger.error("contract valuation failed %s", str(result_contract_valuation))
-                    raise Exception("contract valuation failed " + str(result_contract_valuation))
+                    logger.error(_("contract valuation failed %s" % str(result_contract_valuation)))
+                    raise Exception(_("contract valuation failed %s" % str(result_contract_valuation)))
                 c.amount_notified = result_contract_valuation['data']['total_amount']
             historical_record = c.history.all().last()
             c.json_ext = _save_json_external(
                 user_id=str(historical_record.user_updated.id),
                 datetime=str(historical_record.date_updated),
-                message=f"create contract status {historical_record.state}"
+                message=_("create contract status %s" % historical_record.state)
             )
             c.save(username=self.user.username)
             dict_representation = model_to_dict(c)
@@ -124,7 +127,7 @@ class Contract(object):
             # updatable scenario
             if self.__check_rights_by_status(updated_contract.state) == "updatable":
                 if "code" in contract:
-                    raise ContractUpdateError("That fields are not editable in that permission!")
+                    raise ContractUpdateError(_("That fields are not editable in that permission!"))
                 return _output_result_success(
                     dict_representation=self.__update_contract_fields(
                         contract_input=contract,
@@ -135,7 +138,7 @@ class Contract(object):
             if self.__check_rights_by_status(updated_contract.state) == "approvable":
                 # in “Negotiable” changes are possible only with the authority “Approve/ask for change”
                 if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
-                    raise PermissionError("Unauthorized")
+                    raise PermissionError(_("unauthorized"))
                 return _output_result_success(
                     dict_representation=self.__update_contract_fields(
                         contract_input=contract,
@@ -143,7 +146,7 @@ class Contract(object):
                     )
                 )
             if self.__check_rights_by_status(updated_contract.state) == "cannot_update":
-                raise ContractUpdateError("In that state you cannot update!")
+                raise ContractUpdateError(_("contract.validation.locked_by_state"))
         except Exception as exc:
             return _output_exception(model_name="Contract", method="update", exception=exc)
 
@@ -163,14 +166,14 @@ class Contract(object):
         # check if PH is set and not changed
         if current_policy_holder_id:
             if "policy_holder" in updated_contract.get_dirty_fields(check_relationship=True):
-                raise ContractUpdateError("You cannot update already set PolicyHolder in Contract!")
+                raise ContractUpdateError(_("You cannot update already set PolicyHolder in Contract!"))
         updated_contract.save(username=self.user.username)
         # save the communication
         historical_record = updated_contract.history.all().first()
         updated_contract.json_ext = _save_json_external(
             user_id=str(historical_record.user_updated.id),
             datetime=str(historical_record.date_updated),
-            message="update contract status " + str(historical_record.state)
+            message=_("update contract status %s" % str(historical_record.state))
         )
         updated_contract.save(username=self.user.username)
         uuid_string = f"{updated_contract.id}"
@@ -187,17 +190,23 @@ class Contract(object):
 
             contract_id = f"{contract['id']}"
             contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
-            
-            contract_details_list = self.__gather_policy_holder_insuree(
+            if not contract_to_submit:
+                raise ContractUpdateError(_("No contract found for this id %s" % contract['id']))
+            errors, contract_details_list = self.__gather_policy_holder_insuree(
                 self.__validate_submission(contract_to_submit=contract_to_submit),
                 contract_to_submit.amendment,
                 contract_date_valid_from=None,
             )
+            if errors:
+                raise Exception(_("errors during insuree loading: %s" % ", ".join(errors)))
             # contract valuation
             valuation_result = self.contract_valuation(
                 contract_details_list,
             )
-            contract_to_submit.amount_rectified = valuation_result['data']["total_amount"]
+            if valuation_result['success']:
+                contract_to_submit.amount_rectified = valuation_result['data']["total_amount"]
+            else:
+                raise Exception(_("Enable to valuate contract: %s" % valuation_result['message']))
             # send signal
             contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
             signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
@@ -207,58 +216,97 @@ class Contract(object):
         except Exception as exc:
             return _output_exception(model_name="Contract", method="submit", exception=exc)
 
+    @staticmethod
+    def contract_business_validity(contract):
+        return [
+            Q(Q(date_valid_to__isnull=True) | Q(date_valid_to__gte=contract.date_valid_from)),
+            Q(date_valid_from__lte=contract.date_valid_to)
+        ]
+
+    
     def __validate_submission(self, contract_to_submit):
         # check if we have a PolicyHoldes and any ContractDetails
         if not contract_to_submit.policy_holder:
-            raise ContractUpdateError("The contract does not contain PolicyHolder!")
-        contract_details = ContractDetailsModel.objects.filter(contract_id=contract_to_submit.id)
+            raise ContractUpdateError(_("The contract does not contain PolicyHolder!"))
+        contract_details = ContractDetailsModel.objects.filter(
+            contract=contract_to_submit,
+            is_deleted=False
+        )
         if contract_details.count() == 0:
-            raise ContractUpdateError("The contract does not contain any insuree!")
+            raise ContractUpdateError(_("contract.validation.no_details"))
         # variable to check if we have right for submit
         state_right = self.__check_rights_by_status(contract_to_submit.state)
         # check if we can submit
         if state_right == "cannot_update":
-            raise ContractUpdateError("The contract cannot be submitted because of current state!")
+            raise ContractUpdateError(_("The contract cannot be submitted because of current state!"))
         if state_right == "approvable":
-            raise ContractUpdateError("The contract has been already submitted!")
-        return list(contract_details.values())
+            raise ContractUpdateError(_("The contract has been already submitted!"))
+        return contract_to_submit
 
-    def __gather_policy_holder_insuree(self, contract_details, amendment, contract_date_valid_from=None):
+    def __gather_policy_holder_insuree(self, contract, amendment=None, contract_date_valid_from=None):
         result = []
+        if not amendment:
+            amendment = contract.amendment
+        contract_details = ContractDetailsModel.objects.filter(contract=contract, is_deleted=False)
+        errors = []
+        policy_id = None
         for cd in contract_details:
-            ph_insuree = PolicyHolderInsuree.objects.filter(
-                Q(insuree_id=cd['insuree_id'], last_policy__isnull=False)).first()
-            policy_id = ph_insuree.last_policy.id if ph_insuree else None
-            result.append({
-                "id": f"{cd['id']}",
-                "contribution_plan_bundle": f"{cd['contribution_plan_bundle_id']}",
-                "policy_id": policy_id,
-                "json_ext": cd['json_ext'],
-                "contract_date_valid_from": contract_date_valid_from,
-                "insuree_id": cd['insuree_id'],
-                "amendment": amendment
-            })
-        return result
+            error = None
+            if isinstance(contract.policy_holder, PolicyHolder):
+                ph_insuree = PolicyHolderInsuree.objects.filter(
+                    *self.contract_business_validity(contract),
+                    insuree_id=cd.insuree_id,
+                    is_deleted=False,
+                    
+                ).order_by('-date_valid_from').first()
+                if ph_insuree:
+                    policy_id = ph_insuree.last_policy_id
+                else:
+                    error = _("insuree %s not affiliated with policyholder" % cd.insuree_id)
+            if not error and not policy_id:
+                policy = Policy.objects.filter(
+                    insuree_policies__insuree_id=cd.insuree_id,
+                    *filter_validity(),
+                    *filter_validity(prefix='insuree_policies__')
+                ).order_by('-expiry_date').values('id').first()
+                if policy:
+                    policy_id = policy['id']
+            if not error:
+                result.append({
+                    "id": f"{cd.id}",
+                    "contribution_plan_bundle": f"{cd.contribution_plan_bundle_id}",
+                    "policy_id": policy_id,
+                    "json_ext": cd.json_ext if cd.json_ext else '',
+                    "contract_date_valid_from": contract.date_valid_from,
+                    "insuree_id": cd.insuree_id,
+                    "amendment": amendment
+                })
+            else:
+                errors.append(error)
+        return errors, result
 
     @check_authentication
     def approve(self, contract):
         try:
             # check for approve/ask for change right perms/authorites
             if not self.user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
-                raise PermissionError("Unauthorized")
+                raise PermissionError(_("unauthorized"))
             contract_id = f"{contract['id']}"
-            contract_to_approve = ContractModel.objects.filter(id=contract_id).first()
+            contract_to_approve = ContractModel.objects.filter(
+                id=contract_id,
+                is_deleted=False
+            ).order_by('-amendment').first()
+            if not contract_to_approve:
+                raise ContractUpdateError(_("No contract found for this id %s" % contract['id']))
             # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_approve.state)
             # check if we can submit
             if state_right != "approvable":
-                raise ContractUpdateError("You cannot approve this contract! The status of contract is not Negotiable!")
+                raise ContractUpdateError(_("You cannot approve this contract! The status of contract is not Negotiable!"))
             contract_details_list = {}
-            contract_details_list["data"] = self.__gather_policy_holder_insuree(
-                list(ContractDetailsModel.objects.filter(contract=contract_to_approve).values()),
-                contract_to_approve.amendment,
-                contract_to_approve.date_valid_from,
-            )
+            errors, contract_details_list["data"] = self.__gather_policy_holder_insuree(contract_to_approve)
+            if errors:
+                raise Exception(_("errors during insuree loading: %s" % ", ".join(errors)))
             # send signal - approve contract
             ccpd_service = ContractContributionPlanDetails(user=self.user)
             payment_service = PaymentService(user=self.user)
@@ -291,12 +339,12 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_counter.state)
             # check if we can submit
             if state_right != "approvable":
-                raise ContractUpdateError("You cannot counter this contract! The status of contract is not Negotiable!")
+                raise ContractUpdateError(_("You cannot counter this contract! The status of contract is not Negotiable!"))
             contract_to_counter.state = ContractModel.STATE_COUNTER
             signal_contract.send(sender=ContractModel, contract=contract_to_counter, user=self.user)
             dict_representation = model_to_dict(contract_to_counter)
             dict_representation["id"], dict_representation["uuid"] = (contract_id, contract_id)
-            email = _send_email_notify_counter(
+            _send_email_notify_counter(
                 code=contract_to_counter.code,
                 name=contract_to_counter.policy_holder.trade_name,
                 contact_name=contract_to_counter.policy_holder.contact_name,
@@ -318,7 +366,7 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_amend.state)
             # check if we can amend
             if state_right != "cannot_update" and contract_to_amend.state != ContractModel.STATE_TERMINATED:
-                raise ContractUpdateError("You cannot amend this contract!")
+                raise ContractUpdateError(_("You cannot amend this contract!"))
             # create copy of the contract
             amended_contract = copy(contract_to_amend)
             amended_contract.id = None
@@ -333,17 +381,19 @@ class Contract(object):
             # check if chosen fields are not edited
             if any(dirty_field in ["policy_holder", "code", "date_valid_from"] for dirty_field in
                    amended_contract.get_dirty_fields(check_relationship=True)):
-                raise ContractUpdateError("You cannot update this field during amend contract!")
+                raise ContractUpdateError(_("You cannot update this field during amend contract!"))
             signal_contract.send(sender=ContractModel, contract=contract_to_amend, user=self.user)
             signal_contract.send(sender=ContractModel, contract=amended_contract, user=self.user)
             # copy also contract details
             self.__copy_details(contract_id=contract_id, modified_contract=amended_contract)
             # evaluate amended contract amount notified
        
-            contract_details_list = self.__gather_policy_holder_insuree(
-                list(ContractDetailsModel.objects.filter(contract_id=amended_contract.id).values()),
-                contract_to_amend.amendment,
+            errors, contract_details_list = self.__gather_policy_holder_insuree(
+                amended_contract, 
+                contract_to_amend.amendment
             )
+            if errors:
+                raise Exception(_("errors during insuree loading: %s" % ", ".join(errors)))
             valuation_result = self.contract_valuation(contract_details_list)
             amended_contract.amount_notified = valuation_result['data']["total_amount"]
             if "amount_notified" in amended_contract.get_dirty_fields():
@@ -376,7 +426,7 @@ class Contract(object):
             state_right = self.__check_rights_by_status(contract_to_renew.state)
             # check if we can renew
             if state_right != "cannot_update" and contract_to_renew.state != ContractModel.STATE_TERMINATED:
-                raise ContractUpdateError("You cannot renew this contract!")
+                raise ContractUpdateError(_("You cannot renew this contract!"))
             # create copy of the contract - later we also copy contract detail
             renewed_contract = copy(contract_to_renew)
             # TO DO : if a policyholder is set, the contract details must be removed and PHinsuree imported again
@@ -412,11 +462,11 @@ class Contract(object):
         try:
             # check rights for delete contract
             if not self.user.has_perms(ContractConfig.gql_mutation_delete_contract_perms):
-                raise PermissionError("Unauthorized")
+                raise PermissionError(_("unauthorized"))
             contract_to_delete = ContractModel.objects.filter(id=contract["id"]).first()
             # block deleting contract not in Updateable or Approvable state
             if self.__check_rights_by_status(contract_to_delete.state) == "cannot_update":
-                raise ContractUpdateError("Contract in that state cannot be deleted")
+                raise ContractUpdateError(_("Contract in that state cannot be deleted"))
             contract_to_delete.delete(username=self.user.username)
             return {
                 "success": True,
@@ -456,8 +506,8 @@ class Contract(object):
             else:
                 return {
                     "success": False,
-                    "message": "No contracts to terminate!",
-                    "detail": "We do not have any contract to be terminated!",
+                    "message": _("No contracts to terminate!"),
+                    "detail": _("We do not have any contract to be terminated!"),
                 }
         except Exception as exc:
             return _output_exception(model_name="Contract", method="terminateContract", exception=exc)
@@ -559,20 +609,24 @@ class Contract(object):
 class ContractDetails(object):
     def __init__(self, user):
         self.user = user
-
+#contract_details
     @check_authentication
-    def update_from_ph_insuree(self, contract_details):
+    def update_from_ph_insuree(self, contract):
+        contract_insuree_list = []
+        if not contract.policy_holder:
+            _output_result_success(dict_representation=contract_insuree_list)
         try:
-            contract_insuree_list = []
             policy_holder_insuree = PolicyHolderInsuree.objects.filter(
-                policy_holder__id=contract_details['policy_holder_id'],
+                *Contract.contract_business_validity(contract),
+                policy_holder=contract.policy_holder,
+                is_deleted=False
             )
             for phi in policy_holder_insuree:
                 # TODO add the validity condition also!
-                if phi.is_deleted is False and phi.contribution_plan_bundle:
+                if phi.contribution_plan_bundle:
                     cd = ContractDetailsModel(
                         **{
-                            "contract_id": contract_details["contract_id"],
+                            "contract_id": contract.id,
                             "insuree_id": phi.insuree.id,
                             "contribution_plan_bundle_id": f"{phi.contribution_plan_bundle.id}",
                             "json_ext": phi.json_ext,
@@ -584,7 +638,7 @@ class ContractDetails(object):
                     dict_representation = model_to_dict(cd)
                     dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
                     dict_representation["policy_id"] = phi.last_policy.id if phi.last_policy else None
-                    dict_representation["amendment"] = contract_details["amendment"]
+                    dict_representation["amendment"] = contract.amendment
                     dict_representation["contract_date_valid_from"] = cd.contract.date_valid_from
                     contract_insuree_list.append(dict_representation)
         except Exception as exc:
@@ -604,11 +658,11 @@ class ContractDetails(object):
                                                   ContractModel.STATE_REQUEST_FOR_INFORMATION,
                                                   ContractModel.STATE_COUNTER]:
                     raise ContractUpdateError(
-                        "You cannot update contract by adding insuree - contract not in updatable state!"
+                        _("You cannot update contract by adding insuree - contract not in updatable state!")
                     )
                 if updated_contract.policy_holder is None:
                     raise ContractUpdateError(
-                        "There is no policy holder in contract!"
+                        _("There is no policy holder in contract!")
                     )
                 cd = ContractDetailsModel(
                     **{
@@ -623,7 +677,7 @@ class ContractDetails(object):
                 dict_representation["id"], dict_representation["uuid"] = (uuid_string, uuid_string)
                 return _output_result_success(dict_representation=dict_representation)
             else:
-                raise ContractUpdateError("You cannot insuree - is deleted or not enough data to create contract!")
+                raise ContractUpdateError(_("You cannot insuree - is deleted or not enough data to create contract!"))
         except Exception as exc:
             return _output_exception(model_name="ContractDetails", method="PHInsureToCDetatils", exception=exc)
 
@@ -933,5 +987,5 @@ def _send_email_notify_counter(code, name, contact_name, email):
 
 def check_unique_code(code):
     if ContractModel.objects.filter(code=code, is_deleted=False).exists():
-        return [{"message": "Contract code %s already exists" % code}]
+        return [{"message": _("Contract code %s already exists" % code)}]
     return []
