@@ -1,6 +1,6 @@
 from django.test import TestCase
 from contract.services import Contract as ContractService, ContractDetails as ContractDetailsService, \
-    ContractContributionPlanDetails as ContractContributionPlanDetailsService
+    ContractContributionPlanDetails as ContractContributionPlanDetailsService, subtract_date_ranges
 from contract.models import Contract, ContractDetails, ContractContributionPlanDetails
 from core.test_helpers import create_test_interactive_user
 from policyholder.tests.helpers import create_test_policy_holder, create_test_policy_holder_insuree
@@ -313,6 +313,27 @@ class ServiceTestContract(TestCase):
         self.assertEqual(
             True, response["success"]
         )
+        
+    def test_date_subtract(self):
+        date_range = (datetime.date(2024, 1, 1), datetime.date(2024, 12, 31),)
+        date_ranges = [
+            (datetime.date(2024, 2, 1), datetime.date(2024, 3, 15)),
+            (datetime.date(2024, 5, 1), datetime.date(2024, 6, 30)),
+            (datetime.date(2024, 8, 1), datetime.date(2024, 9, 30))
+        ]
+
+        result = subtract_date_ranges(date_range, date_ranges)
+        
+        per_1 = (datetime.date(2024, 1, 1), datetime.date(2024, 2, 1))
+        per_2 = (datetime.date(2024, 3, 15), datetime.date(2024, 5, 1))
+        per_3 = (datetime.date(2024, 6, 30), datetime.date(2024, 8, 1))
+        per_4 = (datetime.date(2024, 9, 30), datetime.date(2024, 12, 31))
+
+        self.assertTrue(per_1 in result)
+        self.assertTrue(per_2 in result)
+        self.assertTrue(per_3 in result)
+        self.assertTrue(per_4 in result)
+
 
 
 class CalculationContractTest(TestCase):

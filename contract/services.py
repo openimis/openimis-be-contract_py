@@ -33,7 +33,7 @@ from insuree.models import Insuree
 from dateutil.relativedelta import relativedelta
 
 from core.signals import register_service_signal
-from core import datetimedelta
+from core import datetimedelta, datetime
 from core.utils import filter_validity
 
 import logging
@@ -94,9 +94,12 @@ class Contract(object):
                 # run services updateFromPHInsuree and Contract Valuation
                 cd_service = ContractDetails(user=self.user)
                 result_ph_insuree = cd_service.update_from_ph_insuree(contract=c)
-                result_contract_valuation = self.contract_valuation(
-                    contract_details_list=result_ph_insuree["data"]
-                )
+                if result_ph_insuree['success']:
+                    result_contract_valuation = self.contract_valuation(
+                        contract_details_list=result_ph_insuree["data"]
+                    )
+                else:
+                    return result_ph_insuree
                 if not result_contract_valuation or result_contract_valuation["success"] is False:
                     logger.error(_("contract valuation failed %s" % str(result_contract_valuation)))
                     raise Exception(_("contract valuation failed %s" % str(result_contract_valuation)))
@@ -206,7 +209,7 @@ class Contract(object):
             if valuation_result['success']:
                 contract_to_submit.amount_rectified = valuation_result['data']["total_amount"]
             else:
-                raise Exception(_("Enable to valuate contract: %s" % valuation_result['message']))
+                raise Exception(_("Unable to valuate contract: %s" % valuation_result['message']))
             # send signal
             contract_to_submit.state = ContractModel.STATE_NEGOTIABLE
             signal_contract.send(sender=ContractModel, contract=contract_to_submit, user=self.user)
@@ -419,7 +422,6 @@ class Contract(object):
             # check rights for renew contract
             if not self.user.has_perms(ContractConfig.gql_mutation_renew_contract_perms):
                 raise PermissionError("Unauthorized")
-            from core import datetime, datetimedelta
             contract_to_renew = ContractModel.objects.filter(id=contract["id"]).first()
             contract_id = contract["id"]
             # block renewing contract not in Updateable or Approvable state
@@ -692,7 +694,6 @@ class ContractContributionPlanDetails(object):
         """"
             method to create contract contribution plan details
         """
-        from core import datetime
         date_valid_to = ccpd.date_valid_from + datetimedelta(months=ccpd.contribution_plan.periodicity)
         date_valid_from = ccpd.date_valid_from
         # get date from strategy
@@ -705,10 +706,10 @@ class ContractContributionPlanDetails(object):
         )
         
         if validity_dates and 'effective_date' in validity_dates and validity_dates['effective_date']:
-            date_valid_from = validity_dates['effective_date']
+            date_valid_from = datetime.date.from_ad_date(validity_dates['effective_date'])
             
         if validity_dates and 'expiry_date' in validity_dates and validity_dates['expiry_date']:
-            date_valid_to = validity_dates['expiry_date']
+            date_valid_to = datetime.date.from_ad_date(validity_dates['expiry_date'])
         # get the relevant policy from the related product of contribution plan
         # policy objects get all related to this product
         insuree = Insuree.objects.filter(id=insuree_id).first()
@@ -763,44 +764,19 @@ class ContractContributionPlanDetails(object):
         return list_ccpd
 
     def __get_policy(self, insuree, date_valid_from, date_valid_to, product):
-        from core import datetime
         policy_output = []
         # get all policies related to the product and insuree
-        policies = Policy.objects.filter(product=product) \
-            .filter(family__head_insuree=insuree) \
-            .filter(start_date__lte=date_valid_to, expiry_date__gte=date_valid_from)
-        # get covered policy, use count to run a COUNT query
-        if policies.count() > 0:
-            policies_covered = list(policies.order_by('start_date'))
-        else:
-            policies_covered = []
-        missing_coverage = []
-        # make sure the policies covers the contract : 
-        last_date_covered = date_valid_from
-        # get the start date of the new contract by updating last_date_covered to the policy.stop_date
-        while last_date_covered < date_valid_to and len(policies_covered) > 0:
-            cur_policy = policies_covered.pop()
-            # to check if it does take the first
-            if cur_policy.start_date <= last_date_covered:
-                # Really unlikely we might create a policy that stop at curPolicy.startDate
-                # (start at curPolicy.startDate - product length) and add it to policy_output
-                last_date_covered = cur_policy.expiry_date
-                policy_output.append(cur_policy)
-            elif cur_policy.expiry_date <= date_valid_to:
-                missing_coverage.append({'start': cur_policy.start_date, 'stop': last_date_covered})
-                last_date_covered = cur_policy.expiry_date
-                policy_output.append(cur_policy)
+        policies = Policy.objects.filter(
+            product=product,
+            family__head_insuree=insuree,
+            expiry_date__gte=date_valid_from
+        ).order_by('start_date').values('start_date', 'expiry_date')
+        date_ranges = list(map(lambda p: (p['start_date'], p['expiry_date']), policies))
+        missing_coverage = subtract_date_ranges((date_valid_from, date_valid_to,), date_ranges)
 
         for data in missing_coverage:
-            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, data['start'],
-                                                                                      data['stop'])
-            if policy_created is not None and len(policy_created) > 0:
-                policy_output += policy_created
-
-        # now we create new policy
-        while last_date_covered < date_valid_to:
-            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product,
-                                                                                      last_date_covered, date_valid_to)
+            policy_created, last_date_covered = self.create_contract_details_policies(insuree, product, data[0],
+                                                                                      data[1])
             if policy_created is not None and len(policy_created) > 0:
                 policy_output += policy_created
         return policy_output
@@ -938,6 +914,7 @@ class ContractToInvoiceService(object):
 
 
 def _output_exception(model_name, method, exception):
+    logger.debug(exception)
     return {
         "success": False,
         "message": f"Failed to {method} {model_name}",
@@ -989,3 +966,31 @@ def check_unique_code(code):
     if ContractModel.objects.filter(code=code, is_deleted=False).exists():
         return [{"message": _("Contract code %s already exists" % code)}]
     return []
+
+
+
+def subtract_date_ranges(main_range, date_ranges):
+    main_start, main_end = main_range
+    result = []
+    current = main_start
+
+    # Sort the date ranges
+    sorted_ranges = sorted(date_ranges, key=lambda x: x[0])
+
+    for start, end in sorted_ranges:
+        # If there's a gap before the current range, add it to the result
+        if current < start:
+            result.append((current, min(start, main_end)))
+        
+        # Move the current pointer
+        current = max(current, end)
+
+        # If we've covered the entire main range, break
+        if current >= main_end:
+            break
+
+    # If there's remaining uncovered time after the last range, add it
+    if current < main_end:
+        result.append((current, main_end))
+
+    return result
