@@ -222,7 +222,7 @@ class Contract(object):
     @staticmethod
     def contract_business_validity(contract):
         return [
-            Q(Q(date_valid_to__isnull=True) | Q(date_valid_to__gte=contract.date_valid_from)),
+            Q(date_valid_to__isnull=True) | Q(date_valid_to__gte=contract.date_valid_from),
             Q(date_valid_from__lte=contract.date_valid_to)
         ]
 
