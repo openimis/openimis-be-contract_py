@@ -749,7 +749,7 @@ class ContractContributionPlanDetails(object):
                 ccpd_new.date_valid_from = max(policy.effective_date, date_valid_from)
                 ccpd_new.date_valid_to = min(policy.expiry_date, date_valid_to)
                 ccpd_new.policy = policy
-                ccpd_new.save(usern=self.user.user)
+                ccpd_new.save(user=self.user.user)
                 record = model_to_dict(ccpd_new)
                 record['id'] = ccpd_new.id
                 record['calculated_amount'] = amount
