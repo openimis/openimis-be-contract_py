@@ -45,6 +45,8 @@ def on_contract_approve_signal(sender, **kwargs):
         contract_details_list['data'],
         save=True
     )
+    if not contract_contribution_plan_details['success']:
+        return contract_contribution_plan_details
     contract_to_approve.amount_due = contract_contribution_plan_details['data']["total_amount"]
     result = ccpd_service.create_contribution(contract_contribution_plan_details['data'])
     result_payment = __create_payment(contract_to_approve, payment_service, contract_contribution_plan_details['data'])
@@ -198,7 +200,7 @@ def activate_contracted_policies(sender, instance, **kwargs):
                         #  the payment match the value of all contributions
                         for ccpd in ccpd_list:
                             members = run_calculation_rules(ccpd, "members", contract.user_updated)
-                            for insuree in members:               
+                            for insuree in members:
                                 InsureePolicy.objects.create(
                                     **{
                                         "insuree": insuree,
