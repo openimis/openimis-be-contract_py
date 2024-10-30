@@ -8,12 +8,12 @@ It is dedicated to be deployed as a module of [openimis-be_py](https://github.co
 * tblContractContributionPlanDetails > ContractContributionPlanDetails
 
 ## Listened Django Signals
-- post_save - Payment: handles service activate_contracted_policies - only when payment 
+- post_save - Payment: handles service activate_contracted_policies - only when payment
 is related to the contract/contracts. (it is verified by this post save)
 Another payments are omitted in processing.
 
 ## GraphQl Queries
-* contract 
+* contract
 * contractDetails
 * contractContributionPlanDetails
 
@@ -35,7 +35,7 @@ Another payments are omitted in processing.
 ## Additional mutation log helper in Create graphQl mutations - ObjectMutation from core
 - "ObjectMutation" from openimis-be-core_py - models.py
 - "object_mutated" method allows the creation of an object to update the xxxMutation easily.
-- dedicated for createContract and createContractDetails graphQl mutations 
+- dedicated for createContract and createContractDetails graphQl mutations
 - more info about it and how it was implemented here in Contract module in models.py in class ObjectMutation in docs string
 
 ## Services
@@ -48,10 +48,10 @@ Another payments are omitted in processing.
   - renew
   - delete
   - get_negative_amount_amendment
-  - terminate_contract 
+  - terminate_contract
 - ContractDetails
-  - update_from_ph_insuree
-  - ph_insuree_to_contract_details  
+  - get_details_from_ph_insuree
+  - ph_insuree_to_contract_details
 - ContractContributionPlanDetails - CRUD services, replace
   - create_ccpd (ccpd - acronym of contract contribution plan details)
   - contract_valuation
@@ -90,8 +90,8 @@ Another payments are omitted in processing.
 
 
 ## bulk operations - required configuration
-- for 'bulk approve contract' and 'bulk counter contract' graphQL mutations 
+- for 'bulk approve contract' and 'bulk counter contract' graphQL mutations
 - running rabbitmq docker image
-- running celery within "{imis_directory}/openimis-be_py/venv/bin/celery": 
+- running celery within "{imis_directory}/openimis-be_py/venv/bin/celery":
 `-A openIMIS worker --loglevel=DEBUG --without-gossip --without-mingle --without-heartbeat -Ofair`
-- without this required steps you won't be able to bulk counter/approve contract 
+- without this required steps you won't be able to bulk counter/approve contract
