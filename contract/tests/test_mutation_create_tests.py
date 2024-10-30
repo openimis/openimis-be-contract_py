@@ -186,7 +186,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
             )
         ).first()
         input_param = {
-            "uuid": payment.uuid,
+            "uuid": str(payment.uuid),
             "clientMutationId": str(uuid.uuid4()),
             "receivedAmount": str(payment.expected_amount),
             "expectedAmount": str(payment.expected_amount),
