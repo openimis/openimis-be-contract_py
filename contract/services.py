@@ -667,23 +667,22 @@ class Contract(object):
                     )
                     ccpd.amount = run_calculation_rules(ccpd, "value", self.user)
 
-                    if ccpd.amount in (False, None):
+                    if ccpd.amount is False or ccpd.amount is None:
                         errors.append(
                             f"no amount calculated for {ccpd.contract_details.insuree}"
                             + f" - {ccpd.contribution_plan.code}"
                         )
                     # value from strategy
-
-                    total_amount += ccpd.amount
-
-                    if save:
-                        ccpd_record.extend(
-                            ccpd_service.split(
-                                ccpd, contract_details.insuree
-                            )
-                        )
                     else:
-                        ccpd_record.append(ccpd)
+                        total_amount += ccpd.amount
+                        if save:
+                            ccpd_record.extend(
+                                ccpd_service.split(
+                                    ccpd, contract_details.insuree
+                                )
+                            )
+                        else:
+                            ccpd_record.append(ccpd)
             if errors:
                 raise Exception("failed to compute values:" + ',\n'.join(errors))
             if amendment > 0:
