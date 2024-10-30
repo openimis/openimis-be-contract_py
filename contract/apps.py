@@ -1,6 +1,5 @@
 from django.apps import AppConfig
 
-
 MODULE_NAME = "contract"
 
 
@@ -59,6 +58,6 @@ class ContractConfig(AppConfig):
 
     def ready(self):
         from core.models import ModuleConfiguration
+
         cfg = ModuleConfiguration.get_or_default(MODULE_NAME, DEFAULT_CFG)
         self.__load_config(cfg)
-        import contract.signals
