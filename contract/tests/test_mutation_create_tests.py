@@ -63,11 +63,28 @@ class MutationTestContract(openIMISGraphQLTestCase):
         cls.date_to = str((cls.time_stamp + datetime.timedelta(days=60)).date())
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
+ 
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": {"calculation_rule": {"rate": cls.rate}}}
+            custom_props={
+                "json_ext": {"calculation_rule": {"rate": cls.rate}},
+                "date_valid_from": "2010-01-01",
+                "date_valid_to": "2020-01-01",
+            }
         )
+        cls.contribution_plan_old = create_test_contribution_plan(
+            custom_props={
+                "json_ext": {"calculation_rule": {"rate": cls.rate}},
+                "date_valid_from": "2020-01-01",
+                "replacement_uuid": cls.contribution_plan.id
+            }
+        )
+        
         cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
             contribution_plan=cls.contribution_plan,
+            contribution_plan_bundle=cls.contribution_plan_bundle
+        )
+        cls.contribution_plan_bundle_details = create_test_contribution_plan_bundle_details(
+            contribution_plan=cls.contribution_plan_old,
             contribution_plan_bundle=cls.contribution_plan_bundle
         )
         # create policy holder insuree for that test policy holder
@@ -89,13 +106,27 @@ class MutationTestContract(openIMISGraphQLTestCase):
                 },
             )
 
+        cls.policy_holder_insuree_old = create_test_policy_holder_insuree(
+            policy_holder=cls.policy_holder,
+            contribution_plan_bundle=cls.contribution_plan_bundle,
+            custom_props={
+                "json_ext": {"calculation_rule": {"income": cls.income}},
+                "date_valid_from": "2010-01-01",
+                "date_valid_to": "2020-01-01",
+            }
+        )
+    
         cls.policy_holder_insuree = create_test_policy_holder_insuree(
             policy_holder=cls.policy_holder,
             contribution_plan_bundle=cls.contribution_plan_bundle,
             custom_props={
                 "json_ext": {"calculation_rule": {"income": cls.income}},
+                "date_valid_from": "2020-01-01",
+                "replacement_uuid": cls.contribution_plan.id
             }
         )
+        
+        
         cls.policy_holder_insuree2 = create_test_policy_holder_insuree(
             policy_holder=cls.policy_holder,
             contribution_plan_bundle=cls.contribution_plan_bundle,
@@ -211,6 +242,74 @@ class MutationTestContract(openIMISGraphQLTestCase):
                 [(ip.effective_date, ip.expiry_date,) for ip in ips]
             )
             self.assertTrue(not_covered == [])
+            
+            
+    
+        # check the contract details
+        
+        query = f"""
+    {{
+      contractContributionPlanDetails(contractDetails_Contract_Id: "{
+          str(contract.id)}",isDeleted: false,first: 10,orderBy: ["contractDetails_Insuree_Uuid"])
+      {{
+        totalCount
+        
+    pageInfo {{ hasNextPage, hasPreviousPage, startCursor, endCursor}}
+    edges
+    {{
+      node
+      {{
+        jsonExt,contractDetails{{
+            id,
+            jsonExt,
+            contract{{id}},
+            insuree{{id, uuid, chfId, lastName, otherNames, dob}},
+            contributionPlanBundle{{
+                id, code, name, periodicity,
+                dateValidFrom, dateValidTo,
+                isDeleted, replacementUuid
+            }}
+        }},
+        contributionPlan{{id, code, name}}
+      }}
+    }}
+      }}
+    }}       
+        """
+        
+        response = self.query(
+            query,
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"},
+        )
+        content = json.loads(response.content)['data']
+        self.assertEqual(len(content["contractContributionPlanDetails"]["edges"]),
+                         4, "number of detail is not as expected")
+
+        # check covered persons query
+
+        query = f""" 
+    {{
+      insureePolicy(additionalFilter: "{{\\"contract\\":\\"{str(contract.id)}\\"}}",first: 10,orderBy: ["insuree"])
+      {{
+        totalCount
+        pageInfo {{ hasNextPage, hasPreviousPage, startCursor, endCursor}}
+        edges
+        {{
+        node
+        {{
+            insuree{{id, uuid, chfId, lastName, otherNames, dob}}
+        }}
+        }}
+      }}
+    }}
+        """
+        response = self.query(
+            query,
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"},
+        )
+        content = json.loads(response.content)['data']
+        self.assertEqual(len(content["insureePolicy"]["edges"]), 4, "number of insuree Policy is not as expected")
+
 
     def find_by_id_query(self, query_type, id, context=None):
         query = f"""
