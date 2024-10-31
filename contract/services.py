@@ -259,14 +259,6 @@ class Contract(object):
                 model_name="Contract", method="submit", exception=exc
             )
 
-    @staticmethod
-    def contract_business_validity(contract):
-        return [
-            Q(date_valid_to__isnull=True)
-            | Q(date_valid_to__gte=contract.date_valid_from),
-            Q(date_valid_from__lte=contract.date_valid_to),
-        ]
-
     def __validate_submission(self, contract_to_submit):
         # check if we have a PolicyHoldes and any ContractDetails
         if not contract_to_submit.policy_holder:
@@ -654,7 +646,14 @@ class Contract(object):
             ccpd_record = []
             errors = []
             for contract_details in contract_details_list:
-                cpbd_list = contract_details.contribution_plan_bundle.contributionplanbundledetails_set.all()
+                cpbd_list = (
+                    contract_details.contribution_plan_bundle
+                    .contributionplanbundledetails_set.filter(
+                        *contract.contract_business_validity(),
+                        *contract.contract_business_validity(prefix='contribution_plan__'),
+                        is_deleted=False
+                    )
+                )
 
                 for cpbd in cpbd_list:
                     ccpd = ContractContributionPlanDetailsModel(
@@ -731,7 +730,7 @@ class ContractDetails(object):
             _output_result_success(dict_representation=contract_insuree_list)
         try:
             policy_holder_insuree = PolicyHolderInsuree.objects.filter(
-                *Contract.contract_business_validity(contract),
+                *contract.contract_business_validity(),
                 policy_holder=contract.policy_holder,
                 is_deleted=False,
             )
