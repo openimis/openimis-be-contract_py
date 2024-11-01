@@ -1,12 +1,21 @@
 import graphene
-from core import prefix_filterset, ExtendedConnection
-from graphene_django import DjangoObjectType
-from contract.models import Contract, ContractDetails, ContractContributionPlanDetails, \
-    ContractMutation, ContractDetailsMutation
-from insuree.schema import InsureeGQLType
-from contribution_plan.gql.gql_types import ContributionPlanGQLType, ContributionPlanBundleGQLType
 from contribution.gql_queries import PremiumGQLType
+from contribution_plan.gql.gql_types import (
+    ContributionPlanBundleGQLType,
+    ContributionPlanGQLType,
+)
+from core import ExtendedConnection, prefix_filterset
+from graphene_django import DjangoObjectType
+from insuree.schema import InsureeGQLType
 from policyholder.gql.gql_types import PolicyHolderGQLType
+
+from contract.models import (
+    Contract,
+    ContractContributionPlanDetails,
+    ContractDetails,
+    ContractDetailsMutation,
+    ContractMutation,
+)
 
 
 class ContractGQLType(DjangoObjectType):
@@ -17,7 +26,9 @@ class ContractGQLType(DjangoObjectType):
         filter_fields = {
             "id": ["exact"],
             "code": ["exact", "istartswith", "icontains", "iexact"],
-            **prefix_filterset("policy_holder__", PolicyHolderGQLType._meta.filter_fields),
+            **prefix_filterset(
+                "policy_holder__", PolicyHolderGQLType._meta.filter_fields
+            ),
             "amount_notified": ["exact", "lt", "lte", "gt", "gte"],
             "amount_rectified": ["exact", "lt", "lte", "gt", "gte"],
             "amount_due": ["exact", "lt", "lte", "gt", "gte"],
@@ -49,7 +60,10 @@ class ContractDetailsGQLType(DjangoObjectType):
             "id": ["exact"],
             **prefix_filterset("contract__", ContractGQLType._meta.filter_fields),
             **prefix_filterset("insuree__", InsureeGQLType._meta.filter_fields),
-            **prefix_filterset("contribution_plan_bundle__", ContributionPlanBundleGQLType._meta.filter_fields),
+            **prefix_filterset(
+                "contribution_plan_bundle__",
+                ContributionPlanBundleGQLType._meta.filter_fields,
+            ),
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
             "date_updated": ["exact", "lt", "lte", "gt", "gte"],
             "is_deleted": ["exact"],
@@ -70,8 +84,12 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
         filter_fields = {
             "id": ["exact"],
-            **prefix_filterset("contract_details__", ContractDetailsGQLType._meta.filter_fields),
-            **prefix_filterset("contribution_plan__", ContributionPlanGQLType._meta.filter_fields),
+            **prefix_filterset(
+                "contract_details__", ContractDetailsGQLType._meta.filter_fields
+            ),
+            **prefix_filterset(
+                "contribution_plan__", ContributionPlanGQLType._meta.filter_fields
+            ),
             **prefix_filterset("contribution__", PremiumGQLType._meta.filter_fields),
             "date_created": ["exact", "lt", "lte", "gt", "gte"],
             "date_updated": ["exact", "lt", "lte", "gt", "gte"],

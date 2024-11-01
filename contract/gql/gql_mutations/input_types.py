@@ -1,6 +1,5 @@
 import graphene
-
-from core.schema import OpenIMISMutation, TinyInt
+from core.schema import OpenIMISMutation
 
 
 class ContractCreateInputType(OpenIMISMutation.Input):

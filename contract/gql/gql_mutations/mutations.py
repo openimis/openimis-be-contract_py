@@ -1,12 +1,18 @@
-from core import TimeUtils
-from core.schema import OpenIMISMutation
 from core.gql.gql_mutations import ObjectNotExistException
-from contract.services import Contract as ContractService, \
-    ContractDetails as ContractDetailsService, ContractToInvoiceService
-from contract.models import Contract, ContractMutation
-from contract.apps import ContractConfig
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
+from django.forms.models import model_to_dict
+from django.utils.translation import gettext as _
+
+from contract.apps import ContractConfig
+from contract.models import Contract, ContractMutation
+from contract.services import (
+    Contract as ContractService,
+    ContractDetails as ContractDetailsService,
+    ContractToInvoiceService,
+    _output_result_success,
+    _output_exception
+)
 
 
 class ContractCreateMutationMixin:
@@ -17,20 +23,26 @@ class ContractCreateMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_create_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_mutation_create_contract_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.create_contract(user=user, contract=data)
         if output["success"]:
             contract = Contract.objects.get(id=output["data"]["id"])
-            ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+            ContractMutation.object_mutated(
+                user, client_mutation_id=client_mutation_id, contract=contract
+            )
             return None
         else:
             return f"Error! - {output['message']}: {output['detail']}"
@@ -50,17 +62,25 @@ class ContractUpdateMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.update_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        return (
+            None
+            if output["success"]
+            else f"Error! - {output['message']}: {output['detail']}"
+        )
 
     @classmethod
     def update_contract(cls, user, contract):
@@ -90,7 +110,11 @@ class ContractDeleteMutationMixin:
     @classmethod
     def _mutate(cls, user, uuid):
         output = cls.delete_contract(user=user, contract={"id": uuid})
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        return (
+            None
+            if output["success"]
+            else f"Error! - {output['message']}: {output['detail']}"
+        )
 
     @classmethod
     def delete_contract(cls, user, contract):
@@ -107,17 +131,25 @@ class ContractSubmitMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_submit_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_mutation_submit_contract_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.submit_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        return (
+            None
+            if output["success"]
+            else f"Error! - {output['message']}: {output['detail']}"
+        )
 
     @classmethod
     def submit_contract(cls, user, contract):
@@ -134,17 +166,27 @@ class ContractApproveMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(
+                ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
+            )
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.approve_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        return (
+            None
+            if output["success"]
+            else f"Error! - {output['message']}: {output['detail']}"
+        )
 
     @classmethod
     def approve_contract(cls, user, contract):
@@ -161,17 +203,27 @@ class ContractCounterMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(
+                ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
+            )
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.counter_contract(user=user, contract=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        return (
+            None
+            if output["success"]
+            else f"Error! - {output['message']}: {output['detail']}"
+        )
 
     @classmethod
     def counter_contract(cls, user, contract):
@@ -188,20 +240,26 @@ class ContractAmendMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_amend_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_mutation_amend_contract_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.amend_contract(user=user, contract=data)
         if output["success"]:
             contract = Contract.objects.get(id=output["data"]["id"])
-            ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+            ContractMutation.object_mutated(
+                user, client_mutation_id=client_mutation_id, contract=contract
+            )
             return None
         else:
             return f"Error! - {output['message']}: {output['detail']}"
@@ -221,20 +279,26 @@ class ContractRenewMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_renew_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_mutation_renew_contract_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.renew_contract(user=user, contract=data)
         if output["success"]:
             contract = Contract.objects.get(id=output["data"]["id"])
-            ContractMutation.object_mutated(user, client_mutation_id=client_mutation_id, contract=contract)
+            ContractMutation.object_mutated(
+                user, client_mutation_id=client_mutation_id, contract=contract
+            )
             return None
         else:
             return f"Error! - {output['message']}: {output['detail']}"
@@ -254,32 +318,71 @@ class ContractDetailsFromPHInsureeMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.create_cd_from_ph_insuree(user=user, data=data)
-        return None if output["success"] else f"Error! - {output['message']}: {output['detail']}"
+        return (
+            None
+            if output["success"]
+            else f"Error! - {output['message']}: {output['detail']}"
+        )
 
     @classmethod
     def create_cd_from_ph_insuree(cls, user, data):
         contract_details_service = ContractDetailsService(user=user)
-        data_contract = {
-            "id": data["contract_id"]
-        }
-        data_insuree = {
-            "id": data["policy_holder_insuree_id"]
-        }
-        output_data = contract_details_service.ph_insuree_to_contract_details(
-            contract=data_contract,
-            ph_insuree=data_insuree
-        )
-        return output_data
+        try:
+            if not user.has_perms(
+                ContractConfig.gql_mutation_update_contract_perms
+            ):
+                raise PermissionError("Unauthorized")
+            contract = Contract.get(id=f'{data["contract_id"]}')
+            if contract.state not in [
+                    Contract.STATE_DRAFT,
+                    Contract.STATE_REQUEST_FOR_INFORMATION,
+                    Contract.STATE_COUNTER,
+            ]:
+                raise Exception(
+                    _(
+                        "You cannot update contract by adding insuree - contract not in updatable state!"
+                    )
+                )
+            contract_details = contract_details_service.get_details_from_ph_insuree(
+                contract,
+                ph_insuree_id=data["policy_holder_insuree_id"]
+            )
+            dict_representation = []
+            for cd in contract_details:
+                uuid_string = f"{cd.id}"
+                record = model_to_dict(cd)
+                record["id"], record["uuid"] = (
+                    uuid_string,
+                    uuid_string,
+                )
+                dict_representation.append(record)
+                return _output_result_success(dict_representation)
+            else:
+                raise Exception(
+                    _(
+                        "You cannot insuree - is deleted or not enough data to create contract!"
+                    )
+                )
+        except Exception as exc:
+            return _output_exception(
+                model_name="ContractDetails",
+                method="PHInsureToCDetatils",
+                exception=exc,
+            )
 
 
 class ContractCreateInvoiceMutationMixin:
@@ -290,17 +393,19 @@ class ContractCreateInvoiceMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if type(user) is AnonymousUser or not user.id or not user.has_perms(
-                ContractConfig.gql_invoice_create_perms):
+        if (
+            type(user) is AnonymousUser
+            or not user.id
+            or not user.has_perms(ContractConfig.gql_invoice_create_perms)
+        ):
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
     def _mutate(cls, user, **data):
-        client_mutation_id = data.get("client_mutation_id")
         if "client_mutation_id" in data:
-            data.pop('client_mutation_id')
+            data.pop("client_mutation_id")
         if "client_mutation_label" in data:
-            data.pop('client_mutation_label')
+            data.pop("client_mutation_label")
         output = cls.create_contract_invoice(user=user, data=data)
         if output["success"]:
             return None
@@ -309,9 +414,11 @@ class ContractCreateInvoiceMutationMixin:
 
     @classmethod
     def create_contract_invoice(cls, user, data):
-        queryset = Contract.objects.filter(id=data['id'])
+        queryset = Contract.objects.filter(id=data["id"])
         if queryset.count() == 1:
             contract = queryset.first()
             contract_to_invoice_service = ContractToInvoiceService(user=user)
-            output_data = contract_to_invoice_service.create_invoice(instance=contract, convert_to='InvoiceLine', user=user)
+            output_data = contract_to_invoice_service.create_invoice(
+                instance=contract, convert_to="InvoiceLine", user=user
+            )
             return output_data
