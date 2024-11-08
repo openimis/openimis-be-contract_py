@@ -6,6 +6,7 @@ from core.schema import (
     signal_mutation_module_before_mutating,
 )
 from core.utils import append_validity_filter
+from core.services import wait_for_mutation
 from django.db.models import Q
 
 from contract.apps import ContractConfig
@@ -46,12 +47,7 @@ from .services import check_unique_code
 
 class Query(graphene.ObjectType):
 
-    contract = OrderedDjangoFilterConnectionField(
-        ContractGQLType,
-        client_mutation_id=graphene.String(),
-        insuree=graphene.UUID(),
-        orderBy=graphene.List(of_type=graphene.String),
-        dateValidFrom__Gte=graphene.DateTime(),
+    contract = OrderedDjangoFilterConnectionField(https://github.com/openimis/openimis-be-core_py/pull/354
         dateValidTo__Lte=graphene.DateTime(),
         amount_from=graphene.Decimal(),
         amount_to=graphene.Decimal(),
