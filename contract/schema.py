@@ -99,6 +99,7 @@ class Query(graphene.ObjectType):
         filters = append_validity_filter(**kwargs)
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
+            wait_for_mutation(client_mutation_id)
             filters.append(
                 Q(mutations__mutation__client_mutation_id=client_mutation_id)
             )
@@ -124,6 +125,7 @@ class Query(graphene.ObjectType):
         filters = []
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
+            wait_for_mutation(client_mutation_id)
             filters.append(
                 Q(mutations__mutation__client_mutation_id=client_mutation_id)
             )
