@@ -6,6 +6,7 @@ from core.schema import (
     signal_mutation_module_before_mutating,
 )
 from core.utils import append_validity_filter
+from core.services import wait_for_mutation
 from django.db.models import Q
 
 from contract.apps import ContractConfig
@@ -99,6 +100,7 @@ class Query(graphene.ObjectType):
         filters = append_validity_filter(**kwargs)
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
+            wait_for_mutation(client_mutation_id)
             filters.append(
                 Q(mutations__mutation__client_mutation_id=client_mutation_id)
             )
@@ -124,6 +126,7 @@ class Query(graphene.ObjectType):
         filters = []
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
+            wait_for_mutation(client_mutation_id)
             filters.append(
                 Q(mutations__mutation__client_mutation_id=client_mutation_id)
             )
