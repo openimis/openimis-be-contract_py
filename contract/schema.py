@@ -47,7 +47,12 @@ from .services import check_unique_code
 
 class Query(graphene.ObjectType):
 
-    contract = OrderedDjangoFilterConnectionField(https://github.com/openimis/openimis-be-core_py/pull/354
+    contract = OrderedDjangoFilterConnectionField(
+        ContractGQLType,
+        client_mutation_id=graphene.String(),
+        insuree=graphene.UUID(),
+        orderBy=graphene.List(of_type=graphene.String),
+        dateValidFrom__Gte=graphene.DateTime(),
         dateValidTo__Lte=graphene.DateTime(),
         amount_from=graphene.Decimal(),
         amount_to=graphene.Decimal(),
