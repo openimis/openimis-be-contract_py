@@ -210,9 +210,6 @@ def activate_contracted_policies(sender, instance, created,  **kwargs):
     if any(f.function == 'save_history' for f in inspect.stack()):
         return
     
-    transaction.on_commit(lambda: perform_post_save_tasks(instance=instance), robust=True)
-        
-def perform_post_save_tasks(instance):
     payment_detail = (
         PaymentDetail.objects.filter(payment=instance)
         .filter(premium__contract_contribution_plan_details__isnull=False)
