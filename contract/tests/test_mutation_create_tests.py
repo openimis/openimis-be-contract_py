@@ -10,7 +10,7 @@ from contribution_plan.tests.helpers import (
     create_test_contribution_plan_bundle,
     create_test_contribution_plan_bundle_details,
 )
-from core.models import User
+from core.models import User, Role, RoleRight
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
 from core.test_helpers import create_test_interactive_user
 from django.conf import settings
@@ -22,20 +22,22 @@ from policyholder.tests.helpers import (
     create_test_policy_holder,
     create_test_policy_holder_insuree,
 )
+from policyholder.models import PolicyHolderUser
 from contract import schema as contract_schema
 from contract.models import Contract, ContractContributionPlanDetails
 from contract.services import subtract_date_ranges
 from contract.signals import append_contract_filter
 from payment.models import Payment
 from insuree.models import InsureePolicy
-
+from core.utils import filter_validity
 
 class MutationTestContract(openIMISGraphQLTestCase):
     GRAPHQL_URL = f"/{settings.SITE_ROOT()}graphql"
     # This is required by some version of graphene but is never used. It should be set to the schema but the import
     # is shown as an error in the IDE, so leaving it as True.
     GRAPHQL_SCHEMA = True
-    admin_user = None
+    user = None
+    portal_user = None
     schema = Schema(query=contract_schema.Query)
 
     class BaseTestContext:
@@ -49,14 +51,57 @@ class MutationTestContract(openIMISGraphQLTestCase):
     def setUpClass(cls):
         super(MutationTestContract, cls).setUpClass()
         cls.user = User.objects.filter(username="admin", i_user__isnull=False).first()
+        cls.policy_holder = create_test_policy_holder()
         if not cls.user:
             cls.user = create_test_interactive_user(username="admin")
+        if not cls.portal_user:
+            portal_role = Role.objects.create(
+                name="portal",
+                is_system=False,
+                is_blocked=False
+            )
+            rights_id = [
+                154402,
+                154406,
+                154404,
+                153001,
+                154403,
+                154106,
+                154203,
+                154209,
+                154207,
+                154601,
+                154101,
+                154001,
+                154401,
+                154901,
+                154202,
+                154201,
+                154104,
+                154102,
+                154501,
+                154103
+            ]
+        
+            for right_id in rights_id:
+                RoleRight(
+                    role_id=portal_role.id,
+                    right_id=right_id,
+                    audit_user_id=None,
+                ).save()
+            cls.portal_user = create_test_interactive_user(username="portal", roles = [portal_role.id])
+            phu = PolicyHolderUser(
+                user=cls.portal_user,
+                date_valid_from=datetime.datetime.now(),
+                policy_holder=cls.policy_holder
+            )
+            phu.save(user=cls.user)
         # some test data so as to created contract properly
         cls.user_token = get_token(cls.user, cls.BaseTestContext(user=cls.user))
+        cls.user_portal_token =  get_token(cls.portal_user, cls.BaseTestContext(user=cls.portal_user))
         cls.income = 500
         cls.rate = 5
         cls.number_of_insuree = 2
-        cls.policy_holder = create_test_policy_holder()
         cls.policy_holder2 = create_test_policy_holder()
         cls.time_stamp = datetime.datetime.now()
         cls.date_from = str((cls.time_stamp + datetime.timedelta(days=30)).date())

@@ -57,7 +57,7 @@ class ServiceTestContract(TestCase):
         # create contribution plans etc
         cls.contribution_plan_bundle = create_test_contribution_plan_bundle()
         cls.contribution_plan = create_test_contribution_plan(
-            custom_props={"json_ext": {"calculation_rule": {"rate": cls.rate}}}
+            custom_props={"json_ext": {"calculation_rule": {"rate": cls.rate, 'includeFamily': True}}}
         )
         cls.contribution_plan_bundle_details = (
             create_test_contribution_plan_bundle_details(
