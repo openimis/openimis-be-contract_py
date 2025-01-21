@@ -1,9 +1,12 @@
 from calculation.services import run_calculation_rules
 from core.signals import Signal
+from functools import partial
+
 from django.conf import settings
 from django.core.mail import BadHeaderError, send_mail
 from django.db.models import Q, Subquery
 from django.db.models.signals import post_save
+from django.db import transaction
 from django.dispatch import receiver
 from insuree.apps import InsureeConfig
 from insuree.models import InsureePolicy
@@ -14,7 +17,7 @@ from payment.signals import signal_before_payment_query
 from policy.signals import signal_check_formal_sector_for_policy
 from policyholder.apps import PolicyholderConfig
 from policyholder.models import PolicyHolderUser
-
+import inspect
 from .config import get_message_approved_contract
 from .models import Contract, ContractContributionPlanDetails
 
@@ -203,16 +206,23 @@ signal_check_formal_sector_for_policy.connect(formal_sector_policies)
 
 
 @receiver(post_save, sender=Payment, dispatch_uid="payment_signal_paid")
-def activate_contracted_policies(sender, instance, **kwargs):
+def activate_contracted_policies(sender, instance, created,  **kwargs):
     received_amount = instance.received_amount if instance.received_amount else 0
     # check if payment is related to the contract
+    if any(f.function == 'save_history' for f in inspect.stack()):
+        return
+    
+    transaction.on_commit(partial(perform_post_save_tasks, instance=instance), robust=True)
+        
+def perform_post_save_tasks(instance):
     payment_detail = (
-        PaymentDetail.objects.filter(payment__id=int(instance.id))
+        PaymentDetail.objects.filter(payment=instance)
+        .filter(premium__contract_contribution_plan_details__isnull=False)
         .prefetch_related(
             "premium__contract_contribution_plan_details__contract_details__contract"
         )
         .prefetch_related("premium__contract_contribution_plan_details")
-        .filter(premium__contract_contribution_plan_details__isnull=False)
+        
     )
     if len(list(payment_detail)) > 0:
         if instance.expected_amount <= received_amount:

@@ -23,11 +23,7 @@ class ContractCreateMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_mutation_create_contract_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -62,13 +58,10 @@ class ContractUpdateMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
+        
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:
@@ -131,11 +124,7 @@ class ContractSubmitMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_mutation_submit_contract_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -166,13 +155,7 @@ class ContractApproveMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(
-                ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
-            )
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -203,13 +186,7 @@ class ContractCounterMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(
-                ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
-            )
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -240,11 +217,7 @@ class ContractAmendMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_mutation_amend_contract_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -279,11 +252,7 @@ class ContractRenewMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_mutation_renew_contract_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -318,11 +287,7 @@ class ContractDetailsFromPHInsureeMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_mutation_update_contract_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod
@@ -342,10 +307,6 @@ class ContractDetailsFromPHInsureeMutationMixin:
     def create_cd_from_ph_insuree(cls, user, data):
         contract_details_service = ContractDetailsService(user=user)
         try:
-            if not user.has_perms(
-                ContractConfig.gql_mutation_update_contract_perms
-            ):
-                raise PermissionError("Unauthorized")
             contract = Contract.get(id=f'{data["contract_id"]}')
             if contract.state not in [
                     Contract.STATE_DRAFT,
@@ -393,11 +354,7 @@ class ContractCreateInvoiceMutationMixin:
 
     @classmethod
     def _validate_mutation(cls, user, **data):
-        if (
-            type(user) is AnonymousUser
-            or not user.id
-            or not user.has_perms(ContractConfig.gql_invoice_create_perms)
-        ):
+        if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
     @classmethod

@@ -15,12 +15,13 @@ from django.core.exceptions import ValidationError
 from django.core.mail import BadHeaderError, send_mail
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models.query import Q
+from django.db import transaction
 from django.forms.models import model_to_dict
 from django.utils.translation import gettext as _
 from payment.models import Payment, PaymentDetail
 from payment.services import update_or_create_payment
 from policy.models import Policy
-from policyholder.models import PolicyHolderInsuree
+from policyholder.models import PolicyHolderInsuree, has_hybrid_phu_perms, PolicyHolder
 
 from contract.apps import ContractConfig
 from contract.models import Contract as ContractModel
@@ -72,8 +73,13 @@ class Contract(object):
                 raise ValidationError(
                     _("Contract code %s already exists" % incoming_code)
                 )
-            if not self.user.has_perms(
-                ContractConfig.gql_mutation_create_contract_perms
+            if not (self.user.has_perms(
+                ContractConfig.gql_mutation_create_contract_perms)
+                or has_hybrid_phu_perms(
+                    self.user,
+                    PolicyHolder.objects.filter(contract__id=contract['id']).first(),
+                    ContractConfig.gql_mutation_create_contract_policyholder_portal_perms
+                )
             ):
                 raise PermissionError(_("Unauthorized"))
             if not contract.get("date_valid_to", None) or not contract.get(
@@ -84,7 +90,7 @@ class Contract(object):
             if c.date_valid_to < c.date_valid_from:
                 raise Exception(_("contract.validation.date_valid"))
             c.state = ContractModel.STATE_DRAFT
-            c.save(username=self.user.username)
+            c.save(user=self.user)
             uuid_string = f"{c.id}"
             # check if the PH is set
             if c.policy_holder:
@@ -120,7 +126,7 @@ class Contract(object):
                 datetime=str(historical_record.date_updated),
                 message=_("create contract status %s" % historical_record.state),
             )
-            c.save(username=self.user.username)
+            c.save(user=self.user)
             dict_representation = model_to_dict(c)
             dict_representation["id"], dict_representation["uuid"] = (
                 str(uuid_string),
@@ -138,10 +144,16 @@ class Contract(object):
         try:
             # check rights for contract / amendments
             if not (
-                self.user.has_perms(ContractConfig.gql_mutation_update_contract_perms)
-                or self.user.has_perms(
-                    ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
+                self.user.has_perms(
+                    ContractConfig.gql_mutation_update_contract_perms 
+                    + ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
                 )
+                or has_hybrid_phu_perms(
+                    self.user,
+                    PolicyHolder.objects.filter(contract__id=contract['id']).first(),
+                    ContractConfig.gql_mutation_update_contract_policyholder_portal_perms
+                )
+                
             ):
                 raise PermissionError("Unauthorized")
             updated_contract = ContractModel.objects.filter(id=contract["id"]).first()
@@ -199,7 +211,7 @@ class Contract(object):
                 raise ContractUpdateError(
                     _("You cannot update already set PolicyHolder in Contract!")
                 )
-        updated_contract.save(username=self.user.username)
+        updated_contract.save(user=self.user)
         # save the communication
         historical_record = updated_contract.history.all().first()
         updated_contract.json_ext = _save_json_external(
@@ -207,7 +219,7 @@ class Contract(object):
             datetime=str(historical_record.date_updated),
             message=_("update contract status %s" % str(historical_record.state)),
         )
-        updated_contract.save(username=self.user.username)
+        updated_contract.save(user=self.user)
         uuid_string = f"{updated_contract.id}"
         dict_representation = model_to_dict(updated_contract)
         dict_representation["id"], dict_representation["uuid"] = (
@@ -219,9 +231,14 @@ class Contract(object):
     @check_authentication
     def submit(self, contract):
         try:
-            # check for submittion right perms/authorites
-            if not self.user.has_perms(
-                ContractConfig.gql_mutation_submit_contract_perms
+               # check for submittion right perms/authorites
+            if not (self.user.has_perms(
+                ContractConfig.gql_mutation_submit_contract_perms)
+                or has_hybrid_phu_perms(
+                    self.user,
+                    PolicyHolder.objects.filter(contract__id=contract['id']).first(),
+                    ContractConfig.gql_mutation_submit_contract_policyholder_portal_perms
+                )
             ):
                 raise PermissionError("Unauthorized")
 
@@ -374,8 +391,13 @@ class Contract(object):
     def amend(self, contract):
         try:
             # check for amend right perms/authorites
-            if not self.user.has_perms(
-                ContractConfig.gql_mutation_amend_contract_perms
+            if not (
+                self.user.has_perms(ContractConfig.gql_mutation_amend_contract_perms)
+                or has_hybrid_phu_perms(
+                    self.user,
+                    PolicyHolder.objects.filter(contract__id=contract['id']).first(),
+                    ContractConfig.gql_mutation_amend_contract_policyholder_portal_perms
+                )
             ):
                 raise PermissionError("Unauthorized")
             contract_id = f"{contract['id']}"
@@ -448,7 +470,7 @@ class Contract(object):
             cd_new = copy(cd)
             cd_new.id = None
             cd_new.contract = modified_contract
-            cd_new.save(username=self.user.username)
+            cd_new.save(userself.user)
 
     @check_authentication
     def renew(self, contract):
@@ -493,14 +515,14 @@ class Contract(object):
                 1,
             )
             renewed_contract.amount_rectified, renewed_contract.amount_due = (0, 0)
-            renewed_contract.save(username=self.user.username)
+            renewed_contract.save(user=self.user)
             historical_record = renewed_contract.history.all().first()
             renewed_contract.json_ext = _save_json_external(
                 user_id=str(historical_record.user_updated.id),
                 datetime=str(historical_record.date_updated),
                 message=f"contract renewed - state " f"{historical_record.state}",
             )
-            renewed_contract.save(username=self.user.username)
+            renewed_contract.save(user=self.user)
             # copy also contract details
             self.__copy_details(
                 contract_id=contract_id, modified_contract=renewed_contract
@@ -532,7 +554,7 @@ class Contract(object):
                 == "cannot_update"
             ):
                 raise ContractUpdateError(_("Contract in that state cannot be deleted"))
-            contract_to_delete.delete(username=self.user.username)
+            contract_to_delete.delete(user=self.user)
             return {
                 "success": True,
                 "message": "Ok",
@@ -559,7 +581,7 @@ class Contract(object):
                 for contract in contracts_to_terminate:
                     # we can marked that contract as a terminated
                     contract.state = ContractModel.STATE_TERMINATED
-                    contract.save(username=self.user.username)
+                    contract.save(user=self.user)
                     historical_record = contract.history.all().first()
                     contract.json_ext = _save_json_external(
                         user_id=str(historical_record.user_updated.id),
@@ -567,7 +589,7 @@ class Contract(object):
                         message=f"contract terminated - state "
                         f"{historical_record.state}",
                     )
-                    contract.save(username=self.user.username)
+                    contract.save(user=self.user)
                 return {
                     "success": True,
                     "message": "Ok",
@@ -956,23 +978,24 @@ class PaymentService(object):
             from core import datetime
 
             now = datetime.datetime.now()
-            p = update_or_create_payment(data=payment, user=self.user)
-            dict_representation = model_to_dict(p)
-            dict_representation["id"], dict_representation["uuid"] = (p.id, p.uuid)
-            if payment_details:
-                for payment_detail in payment_details:
-                    pd = PaymentDetail.objects.create(
-                        payment=Payment.objects.get(id=p.id),
-                        audit_user_id=-1,
-                        validity_from=now,
-                        product_code=payment_detail["product_code"],
-                        insurance_number=payment_detail["insurance_number"],
-                        expected_amount=payment_detail["expected_amount"],
-                        premium=payment_detail["premium"],
-                    )
-                    pd_record = model_to_dict(pd)
-                    pd_record["id"] = pd.id
-                    payment_list.append(pd_record)
+            with transaction.atomic():
+                p = update_or_create_payment(data=payment, user=self.user)
+                dict_representation = model_to_dict(p)
+                dict_representation["id"], dict_representation["uuid"] = (p.id, p.uuid)
+                if payment_details:
+                    for payment_detail in payment_details:
+                        pd = PaymentDetail.objects.create(
+                            payment=p,
+                            audit_user_id=-1,
+                            validity_from=now,
+                            product_code=payment_detail["product_code"],
+                            insurance_number=payment_detail["insurance_number"],
+                            expected_amount=payment_detail["expected_amount"],
+                            premium=payment_detail["premium"],
+                        )
+                        pd_record = model_to_dict(pd)
+                        pd_record["id"] = pd.id
+                        payment_list.append(pd_record)
             dict_representation["payment_details"] = payment_list
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
