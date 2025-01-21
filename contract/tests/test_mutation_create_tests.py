@@ -29,7 +29,7 @@ from contract.services import subtract_date_ranges
 from contract.signals import append_contract_filter
 from payment.models import Payment
 from insuree.models import InsureePolicy
-
+from core.utils import filter_validity
 
 class MutationTestContract(openIMISGraphQLTestCase):
     GRAPHQL_URL = f"/{settings.SITE_ROOT()}graphql"
@@ -258,7 +258,8 @@ class MutationTestContract(openIMISGraphQLTestCase):
                 additional_filter={
                     'contract': contract.id
                 }
-            )
+            ),
+            *filter_validity()
         ).first()
         input_param = {
             "uuid": str(payment.uuid),

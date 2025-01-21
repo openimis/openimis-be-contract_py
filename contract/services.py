@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.core.mail import BadHeaderError, send_mail
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models.query import Q
+from django.db import transaction
 from django.forms.models import model_to_dict
 from django.utils.translation import gettext as _
 from payment.models import Payment, PaymentDetail
@@ -977,23 +978,24 @@ class PaymentService(object):
             from core import datetime
 
             now = datetime.datetime.now()
-            p = update_or_create_payment(data=payment, user=self.user)
-            dict_representation = model_to_dict(p)
-            dict_representation["id"], dict_representation["uuid"] = (p.id, p.uuid)
-            if payment_details:
-                for payment_detail in payment_details:
-                    pd = PaymentDetail.objects.create(
-                        payment=Payment.objects.get(id=p.id),
-                        audit_user_id=-1,
-                        validity_from=now,
-                        product_code=payment_detail["product_code"],
-                        insurance_number=payment_detail["insurance_number"],
-                        expected_amount=payment_detail["expected_amount"],
-                        premium=payment_detail["premium"],
-                    )
-                    pd_record = model_to_dict(pd)
-                    pd_record["id"] = pd.id
-                    payment_list.append(pd_record)
+            with transaction.atomic():
+                p = update_or_create_payment(data=payment, user=self.user)
+                dict_representation = model_to_dict(p)
+                dict_representation["id"], dict_representation["uuid"] = (p.id, p.uuid)
+                if payment_details:
+                    for payment_detail in payment_details:
+                        pd = PaymentDetail.objects.create(
+                            payment=p,
+                            audit_user_id=-1,
+                            validity_from=now,
+                            product_code=payment_detail["product_code"],
+                            insurance_number=payment_detail["insurance_number"],
+                            expected_amount=payment_detail["expected_amount"],
+                            premium=payment_detail["premium"],
+                        )
+                        pd_record = model_to_dict(pd)
+                        pd_record["id"] = pd.id
+                        payment_list.append(pd_record)
             dict_representation["payment_details"] = payment_list
             return _output_result_success(dict_representation=dict_representation)
         except Exception as exc:
