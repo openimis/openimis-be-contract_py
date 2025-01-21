@@ -206,6 +206,12 @@ signal_check_formal_sector_for_policy.connect(formal_sector_policies)
 def activate_contracted_policies(sender, instance, **kwargs):
     received_amount = instance.received_amount if instance.received_amount else 0
     # check if payment is related to the contract
+    if any(f.function == 'save_history' for f in inspect.stack()):
+        return
+    
+    transaction.on_commit(lambda: perform_post_save_tasks(instance=instance), robust=True)
+        
+def perform_post_save_tasks(instance):
     payment_detail = (
         PaymentDetail.objects.filter(payment__id=int(instance.id))
         .prefetch_related(

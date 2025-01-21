@@ -140,7 +140,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
         cls.graph_client = Client(cls.schema)
 
     def test_mutation_contract_create_without_policy_holder(self):
-
+        
         input_param = {
             "code": "XYZ:" + str(self.time_stamp),
             "dateValidFrom": self.date_from,
@@ -157,179 +157,181 @@ class MutationTestContract(openIMISGraphQLTestCase):
         self.assertEqual(("XYZ:" + str(self.time_stamp),), (result[0]["node"]["code"],))
 
     def test_mutation_contract_create_with_policy_holder(self):
-        input_param = {
-            "code": "XYZ:" + str(self.time_stamp),
-            "policyHolderId": str(self.policy_holder.id),
-            "clientMutationId": str(uuid.uuid4()),
-            "dateValidFrom": self.date_from,
-            "dateValidTo": self.date_to,
-        }
-        content = self.send_mutation("createContract", input_param, self.user_token)
-        self.assertEqual(
-            content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
-        )
-        del input_param["clientMutationId"]
-        result = self.find_by_exact_attributes_query(
-            "contract",
-            params=input_param,
-        )["edges"]
-        converted_id = (
-            base64.b64decode(result[0]["node"]["id"]).decode("utf-8").split(":")[1]
-        )
-        # SUBMIT
-        input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
-        content = self.send_mutation("submitContract", input_param, self.user_token)
-        content = self.assertEqual(
-            content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
-        )
-
-        # COUNTER
-        input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
-        content = self.send_mutation("counterContract", input_param, self.user_token)
-
-        content = self.assertEqual(
-            content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
-        )
-
-        # reSUBMIT
-        input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
-        content = self.send_mutation("submitContract", input_param, self.user_token)
-        self.assertEqual(
-            content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
-        )
-        # Approve
-        input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
-        content = self.send_mutation("approveContract", input_param, self.user_token)
-
-        self.assertEqual(
-            content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
-        )
-        # Pay
-        contract = Contract.objects.get(id=converted_id)
-        payment = Payment.objects.filter(
-            append_contract_filter(
-                None,
-                user=self.user,
-                additional_filter={
-                    'contract': contract.id
-                }
+        #with mock.patch('django.db.transaction.on_commit', lambda func: func()):
+            input_param = {
+                "code": "XYZ:" + str(self.time_stamp),
+                "policyHolderId": str(self.policy_holder.id),
+                "clientMutationId": str(uuid.uuid4()),
+                "dateValidFrom": self.date_from,
+                "dateValidTo": self.date_to,
+            }
+            content = self.send_mutation("createContract", input_param, self.user_token)
+            self.assertEqual(
+                content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
             )
-        ).first()
-        input_param = {
-            "uuid": str(payment.uuid),
-            "clientMutationId": str(uuid.uuid4()),
-            "receivedAmount": str(payment.expected_amount),
-            "expectedAmount": str(payment.expected_amount),
-            "receiptNo": "tests",
-            "typeOfPayment": "C",
-        }
-        content = self.send_mutation("updatePayment", input_param, self.user_token)
-        self.assertEqual(
-            content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
-        )
-        contract.refresh_from_db()
-        self.assertEqual(contract.state, Contract.STATE_EFFECTIVE, 'contract not effective')
-        insuree_policies = list(InsureePolicy.objects.filter(policy__in=ContractContributionPlanDetails.objects.filter(
-            contract_details__contract=contract
-        ).values_list('policy_id', flat=True)))
-
-        for d in list(contract.contractdetails_set.all()):
-            ips = [ip for ip in insuree_policies if ip.insuree_id == d.insuree_id]
-            self.assertTrue(len(ips) > 0)
-            not_covered = subtract_date_ranges(
-                (contract.date_valid_from, contract.date_valid_to,),
-                [(ip.effective_date, ip.expiry_date,) for ip in ips]
+            del input_param["clientMutationId"]
+            result = self.find_by_exact_attributes_query(
+                "contract",
+                params=input_param,
+            )["edges"]
+            converted_id = (
+                base64.b64decode(result[0]["node"]["id"]).decode("utf-8").split(":")[1]
             )
-            self.assertTrue(not_covered == [])
+            # SUBMIT
+            input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
+            content = self.send_mutation("submitContract", input_param, self.user_portal_token)
+            content = self.assertEqual(
+                content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
+            )
 
-        # check the contract details
+            # COUNTER
+            input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
+            content = self.send_mutation("counterContract", input_param, self.user_token)
 
-        query = f"""
-    {{
-      contractContributionPlanDetails(contractDetails_Contract_Id: "{
-          str(contract.id)}",isDeleted: false,first: 10,orderBy: ["contractDetails_Insuree_Uuid"])
-      {{
-        totalCount
+            content = self.assertEqual(
+                content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
+            )
 
-    pageInfo {{ hasNextPage, hasPreviousPage, startCursor, endCursor}}
-    edges
-    {{
-      node
-      {{
-        jsonExt,contractDetails{{
-            id,
-            jsonExt,
-            contract{{id}},
-            insuree{{id, uuid, chfId, lastName, otherNames, dob}},
-            contributionPlanBundle{{
-                id, code, name, periodicity,
-                dateValidFrom, dateValidTo,
-                isDeleted, replacementUuid
-            }}
-        }},
-        contributionPlan{{id, code, name}}
-      }}
-    }}
-      }}
-    }}
-        """
+            # reSUBMIT
+            input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
+            content = self.send_mutation("submitContract", input_param, self.user_token)
+            self.assertEqual(
+                content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
+            )
+            # Approve
+            input_param = {"id": converted_id, "clientMutationId": str(uuid.uuid4())}
+            content = self.send_mutation("approveContract", input_param, self.user_token)
 
-        response = self.query(
-            query,
-            headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"},
-        )
-        content = json.loads(response.content)['data']
-        self.assertEqual(len(content["contractContributionPlanDetails"]["edges"]),
-                         4, "number of detail is not as expected")
+            self.assertEqual(
+                content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
+            )
+            # Pay
+            contract = Contract.objects.get(id=converted_id)
+            payment = Payment.objects.filter(
+                append_contract_filter(
+                    None,
+                    user=self.user,
+                    additional_filter={
+                        'contract': contract.id
+                    }
+                ),
+                *filter_validity()
+            ).first()
+            input_param = {
+                "uuid": str(payment.uuid),
+                "clientMutationId": str(uuid.uuid4()),
+                "receivedAmount": str(payment.expected_amount),
+                "expectedAmount": str(payment.expected_amount),
+                "receiptNo": "tests",
+                "typeOfPayment": "C",
+            }
+            content = self.send_mutation("updatePayment", input_param, self.user_token)
+            self.assertEqual(
+                content["data"]["mutationLogs"]["edges"][0]["node"]["status"], 2
+            )
+            contract.refresh_from_db()
+            self.assertEqual(contract.state, Contract.STATE_EFFECTIVE, 'contract not effective')
+            insuree_policies = list(InsureePolicy.objects.filter(policy__in=ContractContributionPlanDetails.objects.filter(
+                contract_details__contract=contract
+            ).values_list('policy_id', flat=True)))
 
-        # check covered persons query
+            for d in list(contract.contractdetails_set.all()):
+                ips = [ip for ip in insuree_policies if ip.insuree_id == d.insuree_id]
+                self.assertTrue(len(ips) > 0)
+                not_covered = subtract_date_ranges(
+                    (contract.date_valid_from, contract.date_valid_to,),
+                    [(ip.effective_date, ip.expiry_date,) for ip in ips]
+                )
+                self.assertTrue(not_covered == [])
 
-        query = f"""
-    {{
-      insureePolicy(additionalFilter: "{{\\"contract\\":\\"{str(contract.id)}\\"}}",first: 10,orderBy: ["insuree"])
-      {{
-        totalCount
+            # check the contract details
+
+            query = f"""
+        {{
+        contractContributionPlanDetails(contractDetails_Contract_Id: "{
+            str(contract.id)}",isDeleted: false,first: 10,orderBy: ["contractDetails_Insuree_Uuid"])
+        {{
+            totalCount
+
         pageInfo {{ hasNextPage, hasPreviousPage, startCursor, endCursor}}
         edges
         {{
         node
         {{
-            insuree{{id, uuid, chfId, lastName, otherNames, dob}}
+            jsonExt,contractDetails{{
+                id,
+                jsonExt,
+                contract{{id}},
+                insuree{{id, uuid, chfId, lastName, otherNames, dob}},
+                contributionPlanBundle{{
+                    id, code, name, periodicity,
+                    dateValidFrom, dateValidTo,
+                    isDeleted, replacementUuid
+                }}
+            }},
+            contributionPlan{{id, code, name}}
         }}
         }}
-      }}
-    }}
-        """
-        response = self.query(
-            query,
-            headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"},
-        )
-        content = json.loads(response.content)['data']
-        self.assertEqual(len(content["insureePolicy"]["edges"]), 4, "number of insuree Policy is not as expected")
+        }}
+        }}
+            """
+
+            response = self.query(
+                query,
+                headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"},
+            )
+            content = json.loads(response.content)['data']
+            self.assertEqual(len(content["contractContributionPlanDetails"]["edges"]),
+                            4, "number of detail is not as expected")
+
+            # check covered persons query
+
+            query = f"""
+        {{
+        insureePolicy(additionalFilter: "{{\\"contract\\":\\"{str(contract.id)}\\"}}",first: 10,orderBy: ["insuree"])
+        {{
+            totalCount
+            pageInfo {{ hasNextPage, hasPreviousPage, startCursor, endCursor}}
+            edges
+            {{
+            node
+            {{
+                insuree{{id, uuid, chfId, lastName, otherNames, dob}}
+            }}
+            }}
+        }}
+        }}
+            """
+            response = self.query(
+                query,
+                headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"},
+            )
+            content = json.loads(response.content)['data']
+            self.assertEqual(len(content["insureePolicy"]["edges"]), 4, "number of insuree Policy is not as expected")
 
     def find_by_id_query(self, query_type, id, context=None):
-        query = f"""
-        {{
-            {query_type}(id:"{id}") {{
-                totalCount
-                edges {{
-                  node {{
-                    id
-                    version
-                  }}
-                  cursor
-                }}
-          }}
-        }}
-        """
+            query = f"""
+            {{
+                {query_type}(id:"{id}") {{
+                    totalCount
+                    edges {{
+                    node {{
+                        id
+                        version
+                    }}
+                    cursor
+                    }}
+            }}
+            }}
+            """
 
-        query_result = self.execute_query(query, context=context)
-        records = query_result[query_type]["edges"]
+            query_result = self.execute_query(query, context=context)
+            records = query_result[query_type]["edges"]
 
-        if len(records) > 1:
-            raise ValueError(f"Ambiguous id {id} for query {query_type}")
+            if len(records) > 1:
+                raise ValueError(f"Ambiguous id {id} for query {query_type}")
 
-        return records
+            return records
 
     def find_by_exact_attributes_query(self, query_type, params, context=None):
         if "dateValidFrom" in params:
