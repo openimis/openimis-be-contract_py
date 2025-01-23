@@ -111,14 +111,14 @@ class MutationTestContract(openIMISGraphQLTestCase):
 
         cls.contribution_plan = create_test_contribution_plan(
             custom_props={
-                "json_ext": {"calculation_rule": {"rate": cls.rate}, "includeFamily": True},
+                "json_ext": {"calculation_rule": {"rate": cls.rate, "includeFamily": True} },
                 "date_valid_from": "2010-01-01",
                 "date_valid_to": "2020-01-01",
             }
         )
         cls.contribution_plan_old = create_test_contribution_plan(
             custom_props={
-                "json_ext": {"calculation_rule": {"rate": cls.rate}, "includeFamily": True},
+                "json_ext": {"calculation_rule": {"rate": cls.rate, "includeFamily": True}},
                 "date_valid_from": "2020-01-01",
                 "replacement_uuid": cls.contribution_plan.id
             }
