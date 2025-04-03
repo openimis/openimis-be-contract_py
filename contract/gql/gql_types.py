@@ -100,7 +100,7 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         connection_class = ExtendedConnection
 
         @classmethod
-        def get_queryset(clscls, queryset, info):
+        def get_queryset(cls, queryset, info):
             return ContractContributionPlanDetails.get_queryset(queryset, info)
 
 

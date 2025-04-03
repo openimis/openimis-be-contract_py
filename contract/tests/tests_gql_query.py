@@ -7,6 +7,8 @@ import graphene
 from django.test import TestCase
 from graphene import Schema
 from graphene.test import Client
+from core.models import User
+from core.test_helpers import create_test_interactive_user
 
 from contract import schema as contract_schema
 from contract.tests.helpers import (
@@ -15,11 +17,10 @@ from contract.tests.helpers import (
     create_test_contract_details,
 )
 
+from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase, BaseTestContext
 
-class ContractQueryTest(TestCase):
-    class BaseTestContext:
-        user = mock.Mock(is_anonymous=False)
-        user.has_perm = mock.MagicMock(return_value=False)
+class ContractQueryTest(openIMISGraphQLTestCase):
+
 
     class AnonymousUserContext:
         user = mock.Mock(is_anonymous=True)
@@ -51,6 +52,10 @@ class ContractQueryTest(TestCase):
         )
 
         cls.graph_client = Client(cls.schema)
+        cls.user = User.objects.filter(username="admin", i_user__isnull=False).first()
+        if not cls.user:
+            cls.user = create_test_interactive_user(username="admin")
+        cls.user_context = BaseTestContext(cls.user)
 
     def test_find_contract_existing(self):
         id = self.test_contract.id
@@ -711,7 +716,8 @@ class ContractQueryTest(TestCase):
 
     def execute_query(self, query, context=None):
         if context is None:
-            context = self.BaseTestContext()
+            self.user_context.data = query
+            context = self.user_context.get_request()
 
         query_result = self.graph_client.execute(query, context=context)
         query_data = query_result["data"]
