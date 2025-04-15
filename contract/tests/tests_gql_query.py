@@ -22,9 +22,6 @@ from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase, Base
 class ContractQueryTest(openIMISGraphQLTestCase):
 
 
-    class AnonymousUserContext:
-        user = mock.Mock(is_anonymous=True)
-
     @classmethod
     def setUpClass(cls):
         super(ContractQueryTest, cls).setUpClass()
