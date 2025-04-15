@@ -3,6 +3,7 @@ import logging
 import traceback
 import uuid
 from copy import copy
+from decimal import Decimal
 
 from calculation.services import run_calculation_rules
 from contribution.models import Premium
@@ -833,7 +834,7 @@ class ContractContributionPlanDetails(object):
         i = 0
         for policy in policies:
             if i > 1:
-                ccpd = ccpd.copy()
+                ccpd.id = None
             i += 1
             ccpd.policy = policy
             ccpd.date_valid_from = max(
@@ -846,10 +847,15 @@ class ContractContributionPlanDetails(object):
             )
 
             if len(policies) == i:
-                ccpd.amount = calculated_amount - amount_booked
+                ccpd.amount =  Decimal(str(calculated_amount)) - amount_booked
             else:
+                from datetime import time
+                if isinstance(date_valid_from, datetime.date) and not isinstance(date_valid_from, datetime.datetime):
+                    ccpd.date_valid_from = datetime.datetime.combine(date_valid_from, time.min)
+                if isinstance(date_valid_to, datetime.date) and not isinstance(date_valid_to, datetime.datetime):
+                    ccpd.date_valid_to = datetime.datetime.combine(date_valid_to, time.min)
                 ccpd.amount = round(
-                    (ccpd.date_valid_to - ccpd.date_valid_from).days * unit_amount
+                    Decimal((ccpd.date_valid_to - ccpd.date_valid_from).days) * Decimal(str(unit_amount))
                 )
                 amount_booked += ccpd.amount
             ccpd.save(user=self.user)
