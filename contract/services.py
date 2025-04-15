@@ -687,7 +687,6 @@ class Contract(object):
                         }
                     )
                     ccpd.amount = run_calculation_rules(ccpd, "value", self.user)
-
                     if ccpd.amount is False or ccpd.amount is None:
                         errors.append(
                             f"no amount calculated for {ccpd.contract_details.insuree}"

@@ -92,9 +92,12 @@ class Contract(core_models.HistoryBusinessModel):
 
     def contract_business_validity(self, prefix=''):
         return [
-            models.Q(**{f'{prefix}date_valid_to__isnull': True})
-            | models.Q(**{f'{prefix}date_valid_to__gte': self.date_valid_to}),
             models.Q(**{f'{prefix}date_valid_from__lte': self.date_valid_to}),
+            models.Q(**{
+                f'{prefix}date_valid_to__isnull': True
+            }) | models.Q(**{
+                f'{prefix}date_valid_to__gte': self.date_valid_from
+            }),
         ]
 
 
