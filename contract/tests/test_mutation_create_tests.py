@@ -41,9 +41,6 @@ class MutationTestContract(openIMISGraphQLTestCase):
     schema = Schema(query=contract_schema.Query)
 
 
-    class AnonymousUserContext:
-        user = mock.Mock(is_anonymous=True)
-
     @classmethod
     def setUpClass(cls):
         super(MutationTestContract, cls).setUpClass()
@@ -94,8 +91,11 @@ class MutationTestContract(openIMISGraphQLTestCase):
             )
             phu.save(user=cls.user)
         # some test data so as to created contract properly
-        cls.user_token = BaseTestContext(user=cls.user).get_jwt()
-        cls.user_portal_token =  BaseTestContext(user=cls.portal_user).get_jwt()
+        cls.user_context = BaseTestContext(user=cls.user)
+        cls.user_token = cls.user_context.get_jwt()
+        cls.user_portal_context = BaseTestContext(user=cls.portal_user)
+        cls.user_portal_token =  cls.user_portal_context.get_jwt()
+        
         cls.income = 500
         cls.rate = 5
         cls.number_of_insuree = 2
