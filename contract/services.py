@@ -834,7 +834,7 @@ class ContractContributionPlanDetails(object):
         i = 0
         for policy in policies:
             if i > 1:
-                ccpd.id = None
+                ccpd = ccpd.copy()
             i += 1
             ccpd.policy = policy
             ccpd.date_valid_from = max(
