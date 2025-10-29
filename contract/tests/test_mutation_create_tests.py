@@ -44,10 +44,10 @@ class MutationTestContract(openIMISGraphQLTestCase):
     @classmethod
     def setUpClass(cls):
         super(MutationTestContract, cls).setUpClass()
-        cls.user = User.objects.filter(username="admin", i_user__isnull=False).first()
+        cls.user = User.objects.filter(username="Admin", i_user__isnull=False).first()
         cls.policy_holder = create_test_policy_holder()
         if not cls.user:
-            cls.user = create_test_interactive_user(username="admin")
+            cls.user = create_test_interactive_user(username="Admin")
         if not cls.portal_user:
             portal_role = Role.objects.create(
                 name="portal",
