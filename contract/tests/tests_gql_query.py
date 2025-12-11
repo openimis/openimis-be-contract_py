@@ -1,10 +1,8 @@
 import base64
 import datetime
-from unittest import mock
 from uuid import UUID
 
 import graphene
-from django.test import TestCase
 from graphene import Schema
 from graphene.test import Client
 from core.models import User
@@ -19,8 +17,8 @@ from contract.tests.helpers import (
 
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase, BaseTestContext
 
-class ContractQueryTest(openIMISGraphQLTestCase):
 
+class ContractQueryTest(openIMISGraphQLTestCase):
 
     @classmethod
     def setUpClass(cls):

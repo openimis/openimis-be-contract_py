@@ -14,11 +14,11 @@ from product.test_helpers import create_test_product
 from contract.models import Contract, ContractContributionPlanDetails, ContractDetails
 
 
-def create_test_contract(policy_holder=None, custom_props={}):
+def create_test_contract(policy_holder=None, custom_props={}, user=None):
     if not policy_holder:
-        policy_holder = create_test_policy_holder()
+        policy_holder = create_test_policy_holder(user=user)
 
-    user = __get_or_create_simple_contract_user()
+    user = user or __get_or_create_simple_contract_user()
 
     object_data = {
         "code": "CON",

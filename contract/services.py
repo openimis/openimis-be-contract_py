@@ -80,8 +80,7 @@ class Contract(object):
                     self.user,
                     PolicyHolder.objects.filter(contract__id=contract['id']).first(),
                     ContractConfig.gql_mutation_create_contract_policyholder_portal_perms
-                )
-            ):
+            )):
                 raise PermissionError(_("Unauthorized"))
             if not contract.get("date_valid_to", None) or not contract.get(
                 "date_valid_from", None
@@ -146,7 +145,7 @@ class Contract(object):
             # check rights for contract / amendments
             if not (
                 self.user.has_perms(
-                    ContractConfig.gql_mutation_update_contract_perms 
+                    ContractConfig.gql_mutation_update_contract_perms
                     + ContractConfig.gql_mutation_approve_ask_for_change_contract_perms
                 )
                 or has_hybrid_phu_perms(
@@ -154,7 +153,7 @@ class Contract(object):
                     PolicyHolder.objects.filter(contract__id=contract['id']).first(),
                     ContractConfig.gql_mutation_update_contract_policyholder_portal_perms
                 )
-                
+
             ):
                 raise PermissionError("Unauthorized")
             updated_contract = ContractModel.objects.filter(id=contract["id"]).first()
@@ -232,15 +231,14 @@ class Contract(object):
     @check_authentication
     def submit(self, contract):
         try:
-               # check for submittion right perms/authorites
+            # check for submittion right perms/authorites
             if not (self.user.has_perms(
                 ContractConfig.gql_mutation_submit_contract_perms)
                 or has_hybrid_phu_perms(
                     self.user,
                     PolicyHolder.objects.filter(contract__id=contract['id']).first(),
                     ContractConfig.gql_mutation_submit_contract_policyholder_portal_perms
-                )
-            ):
+            )):
                 raise PermissionError("Unauthorized")
 
             contract_id = f"{contract['id']}"
@@ -471,7 +469,7 @@ class Contract(object):
             cd_new = copy(cd)
             cd_new.id = None
             cd_new.contract = modified_contract
-            cd_new.save(userself.user)
+            cd_new.save(user=self.user)
 
     @check_authentication
     def renew(self, contract):
@@ -847,7 +845,7 @@ class ContractContributionPlanDetails(object):
             )
 
             if len(policies) == i:
-                ccpd.amount =  Decimal(str(calculated_amount)) - amount_booked
+                ccpd.amount = Decimal(str(calculated_amount)) - amount_booked
             else:
                 from datetime import time
                 if isinstance(date_valid_from, datetime.date) and not isinstance(date_valid_from, datetime.datetime):
