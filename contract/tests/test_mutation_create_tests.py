@@ -190,7 +190,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
-            context=self.user_context.get_graphql_context()
+            context=self.user_context
         )["edges"]
         # converted_id = base64.b64decode(result[0]['node']['id']).decode('utf-8').split(':')[1]
         # tear down the test data
@@ -214,7 +214,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
         result = self.find_by_exact_attributes_query(
             "contract",
             params=input_param,
-            context=self.user_context.get_graphql_context()
+            context=self.user_context
         )["edges"]
         converted_id = (
             base64.b64decode(result[0]["node"]["id"]).decode("utf-8").split(":")[1]
@@ -257,7 +257,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
                     'contract': contract.id
                 }
             ),
-            *filter_validity()
+            *Payment.filter_validity()
         ).first()
         input_param = {
             "uuid": str(payment.uuid),
@@ -420,7 +420,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
 
     def execute_query(self, query, context=None):
         if context is None:
-            context = BaseTestContext(self.user).get_graphql_context()
+            context = BaseTestContext(self.user)
 
         query_result = self.query(query, headers={"HTTP_AUTHORIZATION": f"Bearer {self.user_token}"})
         content = json.loads(query_result.content)
