@@ -396,8 +396,8 @@ class MutationTestContract(openIMISGraphQLTestCase):
         node_content_str = "\n".join(params.keys()) if query_type == "contract" else ""
         query = f"""
         {{
-            {query_type}({'contract_Id: "' + str(params["contractId"])
-                + '", orderBy: ["-dateCreated"]' if "contractId" in params else self.build_params(params)}) {{
+            {query_type}(
+                {'contract_Id: "' + str(params["contractId"]) + '", orderBy: ["-dateCreated"]' if "contractId" in params else self.build_params(params)}) {{
                 totalCount
                 edges {{
                   node {{
