@@ -252,7 +252,7 @@ def activate_contracted_policies(sender, instance, created, **kwargs):
                                         "start_date": ccpd.date_valid_from,
                                         "effective_date": ccpd.date_valid_from,
                                         "expiry_date": ccpd.date_valid_to,
-                                        "audit_user_id": -1,
+                                        "audit_user_id": contract.user_updated.id_for_audit,
                                     }
                                 )
                         contract.state = Contract.STATE_EFFECTIVE

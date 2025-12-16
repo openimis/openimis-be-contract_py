@@ -918,7 +918,7 @@ class ContractContributionPlanDetails(object):
                     "effective_date": last_date_covered,
                     "expiry_date": expiry_date,
                     "validity_to": None,
-                    "audit_user_id": -1,
+                    "audit_user_id": self.user.id_for_audit,
                 }
             )
             last_date_covered = expiry_date
@@ -943,7 +943,7 @@ class ContractContributionPlanDetails(object):
                         **{
                             "policy": ccpd.policy,
                             "amount": ccpd.amount,
-                            "audit_user_id": self.user._u.audit_user_id,
+                            "audit_user_id": self.user.id_for_audit,
                             "pay_date": now,
                             # TODO Temporary value pay_type - I have to get to know about this field what should be here
                             #  also ask about audit_user_id and pay_date value
@@ -989,7 +989,7 @@ class PaymentService(object):
                     for payment_detail in payment_details:
                         pd = PaymentDetail.objects.create(
                             payment=p,
-                            audit_user_id=-1,
+                            audit_user_id=self.user.id_for_audit,
                             validity_from=now,
                             product_code=payment_detail["product_code"],
                             insurance_number=payment_detail["insurance_number"],

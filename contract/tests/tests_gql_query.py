@@ -5,7 +5,6 @@ from uuid import UUID
 import graphene
 from graphene import Schema
 from graphene.test import Client
-from core.models import User
 from core.test_helpers import create_test_interactive_user
 
 from contract import schema as contract_schema
@@ -45,11 +44,8 @@ class ContractQueryTest(openIMISGraphQLTestCase):
         cls.schema = Schema(
             query=contract_schema.Query,
         )
-
         cls.graph_client = Client(cls.schema)
-        cls.user = User.objects.filter(username='Admin', i_user__isnull=False).first()
-        if not cls.user:
-            cls.user = create_test_interactive_user(username='Admin')
+        cls.user = create_test_interactive_user(username='Admin')
         cls.user_context = BaseTestContext(cls.user)
 
     def test_find_contract_existing(self):

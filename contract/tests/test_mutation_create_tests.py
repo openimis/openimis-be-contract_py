@@ -27,7 +27,6 @@ from contract.services import subtract_date_ranges
 from contract.signals import append_contract_filter
 from payment.models import Payment
 from insuree.models import InsureePolicy
-from core.utils import filter_validity
 
 
 class MutationTestContract(openIMISGraphQLTestCase):
@@ -259,6 +258,7 @@ class MutationTestContract(openIMISGraphQLTestCase):
             ),
             *Payment.filter_validity()
         ).first()
+        self.assertIsNotNone(payment, "payment was not generated as expected")
         input_param = {
             "uuid": str(payment.uuid),
             "clientMutationId": str(uuid.uuid4()),

@@ -89,7 +89,7 @@ def create_test_contract_contribution_plan_details(
 
     if not contract_details:
         contract_details = create_test_contract_details()
-
+    user = __get_or_create_simple_contract_user()
     if not contribution:
         contribution = Premium.objects.create(
             **{
@@ -99,12 +99,11 @@ def create_test_contract_contribution_plan_details(
                 "receipt": "Test receipt",
                 "pay_date": "2019-01-01",
                 "validity_from": "2019-01-01",
-                "audit_user_id": 1,
+                "audit_user_id": user.id_for_audit,
                 "pay_type": "C",
             }
         )
 
-    user = __get_or_create_simple_contract_user()
     object_data = {
         "contribution_plan": contribution_plan,
         "policy": policy,
