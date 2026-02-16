@@ -54,8 +54,8 @@ class Query(graphene.ObjectType):
         orderBy=graphene.List(of_type=graphene.String),
         dateValidFrom__Gte=graphene.DateTime(),
         dateValidTo__Lte=graphene.DateTime(),
-        amount_from=graphene.Decimal(),
-        amount_to=graphene.Decimal(),
+        amount_from=graphene.Float(),
+        amount_to=graphene.Float(),
         applyDefaultValidityFilter=graphene.Boolean(),
     )
 

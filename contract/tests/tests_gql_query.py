@@ -1,13 +1,10 @@
 import base64
 import datetime
-from unittest import mock
 from uuid import UUID
 
 import graphene
-from django.test import TestCase
 from graphene import Schema
 from graphene.test import Client
-from core.models import User
 from core.test_helpers import create_test_interactive_user
 
 from contract import schema as contract_schema
@@ -19,8 +16,8 @@ from contract.tests.helpers import (
 
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase, BaseTestContext
 
-class ContractQueryTest(openIMISGraphQLTestCase):
 
+class ContractQueryTest(openIMISGraphQLTestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -47,11 +44,8 @@ class ContractQueryTest(openIMISGraphQLTestCase):
         cls.schema = Schema(
             query=contract_schema.Query,
         )
-
         cls.graph_client = Client(cls.schema)
-        cls.user = User.objects.filter(username="admin", i_user__isnull=False).first()
-        if not cls.user:
-            cls.user = create_test_interactive_user(username="admin")
+        cls.user = create_test_interactive_user(username='Admin')
         cls.user_context = BaseTestContext(cls.user)
 
     def test_find_contract_existing(self):

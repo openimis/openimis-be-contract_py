@@ -4,7 +4,6 @@ from django.core.exceptions import ValidationError
 from django.forms.models import model_to_dict
 from django.utils.translation import gettext as _
 
-from contract.apps import ContractConfig
 from contract.models import Contract, ContractMutation
 from contract.services import (
     Contract as ContractService,
@@ -61,7 +60,6 @@ class ContractUpdateMutationMixin:
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
 
-        
     @classmethod
     def _mutate(cls, user, **data):
         if "client_mutation_id" in data:

@@ -4,7 +4,6 @@ from django.conf import settings
 from django.core.mail import BadHeaderError, send_mail
 from django.db.models import Q, Subquery
 from django.db.models.signals import post_save
-from django.db import transaction
 from django.dispatch import receiver
 from insuree.apps import InsureeConfig
 from insuree.models import InsureePolicy
@@ -204,12 +203,12 @@ signal_check_formal_sector_for_policy.connect(formal_sector_policies)
 
 
 @receiver(post_save, sender=Payment, dispatch_uid="payment_signal_paid")
-def activate_contracted_policies(sender, instance, created,  **kwargs):
+def activate_contracted_policies(sender, instance, created, **kwargs):
     received_amount = instance.received_amount if instance.received_amount else 0
     # check if payment is related to the contract
     if any(f.function == 'save_history' for f in inspect.stack()):
         return
-    
+
     payment_detail = (
         PaymentDetail.objects.filter(payment=instance)
         .filter(premium__contract_contribution_plan_details__isnull=False)
@@ -217,7 +216,7 @@ def activate_contracted_policies(sender, instance, created,  **kwargs):
             "premium__contract_contribution_plan_details__contract_details__contract"
         )
         .prefetch_related("premium__contract_contribution_plan_details")
-        
+
     )
     if len(list(payment_detail)) > 0:
         if instance.expected_amount <= received_amount:
@@ -253,7 +252,7 @@ def activate_contracted_policies(sender, instance, created,  **kwargs):
                                         "start_date": ccpd.date_valid_from,
                                         "effective_date": ccpd.date_valid_from,
                                         "expiry_date": ccpd.date_valid_to,
-                                        "audit_user_id": -1,
+                                        "audit_user_id": contract.user_updated.id_for_audit,
                                     }
                                 )
                         contract.state = Contract.STATE_EFFECTIVE

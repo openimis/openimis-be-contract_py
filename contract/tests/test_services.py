@@ -35,10 +35,10 @@ class ServiceTestContract(TestCase):
     @classmethod
     def setUpClass(cls):
         super(ServiceTestContract, cls).setUpClass()
-        cls.user = User.objects.filter(username="admin").first()
+        cls.user = User.objects.filter(username="Admin").first()
         if not cls.user:
             cls.user = create_test_interactive_user(
-                username="admin", password="S/pe®Pąßw0rd™"
+                username="Admin", password="S/pe®Pąßw0rd™"
             )
         cls.contract_service = ContractService(cls.user)
         cls.contract_details_service = ContractDetailsService(cls.user)
@@ -213,7 +213,7 @@ class ServiceTestContract(TestCase):
 
         contract_created = Contract.objects.filter(id=contract_id).first()
         contract_created.state = Contract.STATE_EXECUTABLE
-        contract_created.save(username="admin")
+        contract_created.save(username='Admin')
 
         contract = {
             "id": contract_id,
@@ -224,7 +224,7 @@ class ServiceTestContract(TestCase):
         expected_message = "ContractUpdateError: The contract cannot be submitted because of current state!"
 
         contract_created.state = Contract.STATE_NEGOTIABLE
-        contract_created.save(username="admin")
+        contract_created.save(username='Admin')
 
         response = self.contract_service.submit(contract)
         result_message2 = response["detail"]
@@ -233,7 +233,7 @@ class ServiceTestContract(TestCase):
         )
 
         contract_created.policy_holder = None
-        contract_created.save(username="admin")
+        contract_created.save(username='Admin')
 
         response = self.contract_service.submit(contract)
         result_message3 = response["detail"]
@@ -373,10 +373,10 @@ class CalculationContractTest(TestCase):
     @classmethod
     def setUpClass(cls):
         super(CalculationContractTest, cls).setUpClass()
-        cls.user = User.objects.filter(username="admin").first()
+        cls.user = User.objects.filter(username='Admin').first()
         if not cls.user:
             cls.user = create_test_interactive_user(
-                username="admin", password="S/pe®Pąßw0rd™"
+                username='Admin', password="S/pe®Pąßw0rd™"
             )
         cls.contract_service = ContractService(cls.user)
         cls.income = 500

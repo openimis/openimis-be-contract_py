@@ -14,11 +14,11 @@ from product.test_helpers import create_test_product
 from contract.models import Contract, ContractContributionPlanDetails, ContractDetails
 
 
-def create_test_contract(policy_holder=None, custom_props={}):
+def create_test_contract(policy_holder=None, custom_props={}, user=None):
     if not policy_holder:
-        policy_holder = create_test_policy_holder()
+        policy_holder = create_test_policy_holder(user=user)
 
-    user = __get_or_create_simple_contract_user()
+    user = user or __get_or_create_simple_contract_user()
 
     object_data = {
         "code": "CON",
@@ -89,7 +89,7 @@ def create_test_contract_contribution_plan_details(
 
     if not contract_details:
         contract_details = create_test_contract_details()
-
+    user = __get_or_create_simple_contract_user()
     if not contribution:
         contribution = Premium.objects.create(
             **{
@@ -99,12 +99,11 @@ def create_test_contract_contribution_plan_details(
                 "receipt": "Test receipt",
                 "pay_date": "2019-01-01",
                 "validity_from": "2019-01-01",
-                "audit_user_id": 1,
+                "audit_user_id": user.id_for_audit,
                 "pay_type": "C",
             }
         )
 
-    user = __get_or_create_simple_contract_user()
     object_data = {
         "contribution_plan": contribution_plan,
         "policy": policy,
@@ -121,7 +120,7 @@ def create_test_contract_contribution_plan_details(
 
 
 def __get_or_create_simple_contract_user():
-    if not User.objects.filter(username="admin").exists():
-        User.objects.create_superuser(username="admin", password="S/pe®Pąßw0rd™")
-    user = User.objects.filter(username="admin").first()
+    if not User.objects.filter(username="Admin").exists():
+        User.objects.create_superuser(username="Admin", password="S/pe®Pąßw0rd™")
+    user = User.objects.filter(username="Admin").first()
     return user

@@ -4,7 +4,7 @@ from contribution_plan.gql.gql_types import (
     ContributionPlanBundleGQLType,
     ContributionPlanGQLType,
 )
-from core import ExtendedConnection, prefix_filterset
+from core import ExtendedConnection, prefix_filterset, ExtendedRelayConnection
 from graphene_django import DjangoObjectType
 from insuree.schema import InsureeGQLType
 from policyholder.gql.gql_types import PolicyHolderGQLType
@@ -42,13 +42,13 @@ class ContractGQLType(DjangoObjectType):
             "version": ["exact"],
         }
 
-        connection_class = ExtendedConnection
+        connection_class = ExtendedRelayConnection
 
         @classmethod
         def get_queryset(cls, queryset, info):
             return Contract.get_queryset(queryset, info)
 
-    amount = graphene.Float()
+    # amount = graphene.Float()
 
 
 class ContractDetailsGQLType(DjangoObjectType):
