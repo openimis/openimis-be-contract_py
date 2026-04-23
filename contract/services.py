@@ -1092,15 +1092,29 @@ def check_unique_code(code):
     return []
 
 
+def _to_date(d):
+    # Normalize datetime (with time component) to date.
+    # AdDate.to_ad_date() returns self; AdDatetime.to_ad_date() returns AdDate.
+    if hasattr(d, 'to_ad_date'):
+        return d.to_ad_date()
+    # Plain datetime.datetime has .date(); plain datetime.date does not.
+    if hasattr(d, 'date') and callable(d.date):
+        return d.date()
+    return d
+
+
 def subtract_date_ranges(main_range, date_ranges):
-    main_start, main_end = main_range
+    main_start = _to_date(main_range[0])
+    main_end = _to_date(main_range[1])
     result = []
     current = main_start
 
     # Sort the date ranges
-    sorted_ranges = sorted(date_ranges, key=lambda x: x[0])
+    sorted_ranges = sorted(date_ranges, key=lambda x: _to_date(x[0]))
 
     for start, end in sorted_ranges:
+        start = _to_date(start)
+        end = _to_date(end)
         # If there's a gap before the current range, add it to the result
         if current < start:
             result.append((current, min(start, main_end)))
