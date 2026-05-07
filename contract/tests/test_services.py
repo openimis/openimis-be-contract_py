@@ -26,7 +26,7 @@ from contract.services import (
     ContractContributionPlanDetails as ContractContributionPlanDetailsService,
 )
 from contract.services import ContractDetails as ContractDetailsService
-from core import subtract_date_ranges
+from contract.services import subtract_date_ranges
 
 
 class ServiceTestContract(TestCase):
