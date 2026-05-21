@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from calculation.services import run_calculation_rules
 from contribution.models import Premium
-from core import datetime, datetimedelta
+from core import datetime, datetimedelta, subtract_date_ranges
 from core.signals import register_service_signal
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
@@ -1090,30 +1090,3 @@ def check_unique_code(code):
     if ContractModel.objects.filter(code=code, is_deleted=False).exists():
         return [{"message": _("Contract code %s already exists" % code)}]
     return []
-
-
-def subtract_date_ranges(main_range, date_ranges):
-    main_start, main_end = main_range
-    result = []
-    current = main_start
-
-    # Sort the date ranges
-    sorted_ranges = sorted(date_ranges, key=lambda x: x[0])
-
-    for start, end in sorted_ranges:
-        # If there's a gap before the current range, add it to the result
-        if current < start:
-            result.append((current, min(start, main_end)))
-
-        # Move the current pointer
-        current = max(current, end)
-
-        # If we've covered the entire main range, break
-        if current >= main_end:
-            break
-
-    # If there's remaining uncovered time after the last range, add it
-    if current < main_end:
-        result.append((current, main_end))
-
-    return result
