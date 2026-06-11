@@ -1093,12 +1093,17 @@ def check_unique_code(code):
 
 
 def subtract_date_ranges(main_range, date_ranges):
-    main_start, main_end = main_range
+    from core.datetimes.shared import to_date
+
+    main_start, main_end = (to_date(main_range[0]), to_date(main_range[1]))
     result = []
     current = main_start
 
     # Sort the date ranges
-    sorted_ranges = sorted(date_ranges, key=lambda x: x[0])
+    sorted_ranges = sorted(
+        [(to_date(start), to_date(end)) for start, end in date_ranges],
+        key=lambda x: x[0],
+    )
 
     for start, end in sorted_ranges:
         # If there's a gap before the current range, add it to the result
