@@ -23,7 +23,7 @@ from policyholder.tests.helpers import (
 from policyholder.models import PolicyHolderUser
 from contract import schema as contract_schema
 from contract.models import Contract, ContractContributionPlanDetails
-from contract.services import subtract_date_ranges
+from core import subtract_date_ranges
 from contract.signals import append_contract_filter
 from payment.models import Payment
 from insuree.models import InsureePolicy

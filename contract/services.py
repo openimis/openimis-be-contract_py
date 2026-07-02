@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from calculation.services import run_calculation_rules
 from contribution.models import Premium
-from core import datetime, datetimedelta
+from core import datetime, datetimedelta, subtract_date_ranges
 from core.signals import register_service_signal
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
