@@ -1090,3 +1090,35 @@ def check_unique_code(code):
     if ContractModel.objects.filter(code=code, is_deleted=False).exists():
         return [{"message": _("Contract code %s already exists" % code)}]
     return []
+
+
+def subtract_date_ranges(main_range, date_ranges):
+    from core.datetimes.shared import to_date
+
+    main_start, main_end = (to_date(main_range[0]), to_date(main_range[1]))
+    result = []
+    current = main_start
+
+    # Sort the date ranges
+    sorted_ranges = sorted(
+        [(to_date(start), to_date(end)) for start, end in date_ranges],
+        key=lambda x: x[0],
+    )
+
+    for start, end in sorted_ranges:
+        # If there's a gap before the current range, add it to the result
+        if current < start:
+            result.append((current, min(start, main_end)))
+
+        # Move the current pointer
+        current = max(current, end)
+
+        # If we've covered the entire main range, break
+        if current >= main_end:
+            break
+
+    # If there's remaining uncovered time after the last range, add it
+    if current < main_end:
+        result.append((current, main_end))
+
+    return result
