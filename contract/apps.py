@@ -61,3 +61,14 @@ class ContractConfig(AppConfig):
 
         cfg = ModuleConfiguration.get_or_default(MODULE_NAME, DEFAULT_CFG)
         self.__load_config(cfg)
+
+    def set_dataloaders(self, dataloaders):
+        from contract.dataloaders import (
+            ContractDetailsByContractLoader,
+            ContributionPlanDetailsByContractLoader,
+        )
+
+        dataloaders["contract_details_by_contract"] = ContractDetailsByContractLoader()
+        dataloaders["contract_contribution_plan_details_by_contract"] = (
+            ContributionPlanDetailsByContractLoader()
+        )

@@ -728,3 +728,73 @@ class ContractQueryTest(openIMISGraphQLTestCase):
 
         params_as_args = [f"{k}:{wrap_arg(v)}" for k, v in params.items()]
         return ", ".join(params_as_args)
+
+    def test_find_contract_with_contract_details(self):
+        contract_id = self.test_contract.id
+        contract_detail_id = self.test_contract_details.id
+
+        query = f"""
+        {{
+            contract(id: "{contract_id}") {{
+                totalCount
+                edges {{
+                    node {{
+                        id
+                        contractDetails {{
+                            id
+                            insuree {{
+                                id
+                            }}
+                            contributionPlanBundle {{
+                                id
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """
+
+        query_result = self.execute_query(query)
+        result = query_result["contract"]["edges"][0]["node"]
+
+        self.assertTrue(result["contractDetails"])
+        returned_id = base64.b64decode(
+            result["contractDetails"][0]["id"]
+        ).decode("utf-8").split(":")[1]
+
+        self.assertEqual(UUID(returned_id), contract_detail_id)
+
+    def test_find_contract_with_contract_contribution_plan_details(self):
+        contract_id = self.test_contract.id
+        contribution_detail_id = self.test_contract_contribution_plan_details.id
+
+        query = f"""
+        {{
+            contract(id: "{contract_id}") {{
+                totalCount
+                edges {{
+                    node {{
+                        id
+                        contractContributionPlanDetails {{
+                            id
+                            amount
+                            contributionPlan {{
+                                id
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """
+
+        query_result = self.execute_query(query)
+        result = query_result["contract"]["edges"][0]["node"]
+
+        self.assertTrue(result["contractContributionPlanDetails"])
+        returned_id = base64.b64decode(
+            result["contractContributionPlanDetails"][0]["id"]
+        ).decode("utf-8").split(":")[1]
+
+        self.assertEqual(UUID(returned_id), contribution_detail_id)

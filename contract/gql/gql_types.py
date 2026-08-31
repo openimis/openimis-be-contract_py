@@ -19,6 +19,10 @@ from contract.models import (
 
 
 class ContractGQLType(DjangoObjectType):
+    contract_details = graphene.List(lambda: ContractDetailsGQLType)
+    contract_contribution_plan_details = graphene.List(
+        lambda: ContractContributionPlanDetailsGQLType
+    )
 
     class Meta:
         model = Contract
@@ -47,6 +51,32 @@ class ContractGQLType(DjangoObjectType):
         @classmethod
         def get_queryset(cls, queryset, info):
             return Contract.get_queryset(queryset, info)
+
+    def resolve_contract_details(self, info):
+        loader = getattr(info.context, "dataloaders", {}).get(
+            "contract_details_by_contract"
+        )
+        if loader:
+            return loader.load(self.id)
+
+        return (
+            ContractDetails.objects
+            .filter(contract_id=self.id, is_deleted=False)
+            .select_related("insuree", "contribution_plan_bundle")
+        )
+
+    def resolve_contract_contribution_plan_details(self, info):
+        loader = getattr(info.context, "dataloaders", {}).get(
+            "contract_contribution_plan_details_by_contract"
+        )
+        if loader:
+            return loader.load(self.id)
+
+        return (
+            ContractContributionPlanDetails.objects
+            .filter(contract_details__contract_id=self.id, is_deleted=False)
+            .select_related("contract_details", "contribution_plan", "contribution", "policy")
+        )
 
     # amount = graphene.Float()
 
