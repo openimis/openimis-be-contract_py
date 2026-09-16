@@ -16,6 +16,7 @@ from contract.models import (
     ContractDetailsMutation,
     ContractMutation,
 )
+from core.gql import ScopedQuerysetMixin
 
 
 class ContractGQLType(DjangoObjectType):
@@ -134,11 +135,11 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
             return ContractContributionPlanDetails.get_queryset(queryset, info)
 
 
-class ContractMutationGQLType(DjangoObjectType):
+class ContractMutationGQLType(ScopedQuerysetMixin, DjangoObjectType):
     class Meta:
         model = ContractMutation
 
 
-class ContractDetailsMutationGQLType(DjangoObjectType):
+class ContractDetailsMutationGQLType(ScopedQuerysetMixin, DjangoObjectType):
     class Meta:
         model = ContractDetailsMutation
