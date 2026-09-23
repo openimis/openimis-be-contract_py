@@ -5,12 +5,12 @@ from core.rights_declaration import RightsDeclaration
 MODULE_NAME = "contract"
 
 
-# Droits, par entité puis par action. Même structure que `core.apps.DJANGO_PERMS`.
+# Rights, by entity then by action. Same structure as `core.apps.DJANGO_PERMS`.
 #
-# Deux entités partagent volontairement les identifiants d'un autre module, parce qu'il
-# s'agit de la même action sur le même objet : les paiements d'un contrat prennent les
-# droits du module payment (1014xx), et la création d'une facture celui du module
-# invoice (155102). Ce n'est pas une collision, c'est une réutilisation.
+# Two entities deliberately share another module's identifiers, because they are the
+# same action on the same object: a contract's payments take the payment module's
+# rights (1014xx), and creating an invoice takes the invoice module's (155102). This is
+# not a collision, it is a reuse.
 DJANGO_PERMS = {
     "contract": {
         "query": ("contract.view_contract", 152101),
@@ -95,10 +95,10 @@ class ContractConfig(AppConfig):
     gql_mutation_submit_contract_perms = RIGHTS.perms("contract", "submit")
     gql_mutation_approve_ask_for_change_contract_perms = RIGHTS.perms("contract", "approveAskForChange")
     gql_mutation_amend_contract_perms = RIGHTS.perms("contract", "amend")
-    # `__load_config` n'affecte que les cles de config ayant deja un attribut ici :
-    # celle-ci n'en avait pas, donc elle n'etait jamais chargee et sa lecture levait
-    # AttributeError - le droit etait declare mais inapplicable. Rien ne la lit
-    # aujourd'hui, ce qui explique que personne ne s'en soit apercu.
+    # `__load_config` only assigns config keys that already have an attribute here:
+    # this one had none, so it was never loaded and reading it raised AttributeError -
+    # the right was declared but unenforceable. Nothing reads it today, which is why
+    # nobody had noticed.
     gql_query_payment_perms = RIGHTS.perms("contractPayment", "query")
     gql_mutation_create_payments_perms = RIGHTS.perms("contractPayment", "create")
     gql_mutation_update_payments_perms = RIGHTS.perms("contractPayment", "update")

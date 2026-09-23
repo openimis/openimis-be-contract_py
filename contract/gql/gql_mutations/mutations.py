@@ -290,10 +290,10 @@ class ContractDetailsFromPHInsureeMutationMixin:
     def _validate_mutation(cls, user, **data):
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
-        # Cree des ContractDetails, qui declarent scope_parent = "contract" : le droit
-        # est donc celui de la creation sur le contrat. Auparavant seule
-        # l'authentification etait exigee, ici comme dans le service appele
-        # (ContractDetails.get_details_from_ph_insuree ne verifie rien).
+        # Creates ContractDetails, which declare scope_parent = "contract": the right
+        # is therefore that of creating on the contract. Previously only
+        # authentication was required, here as in the service called
+        # (ContractDetails.get_details_from_ph_insuree checks nothing).
         if not has_model_right(user, cls._model, "create"):
             raise PermissionDenied(_("unauthorized"))
 
@@ -363,9 +363,9 @@ class ContractCreateInvoiceMutationMixin:
     def _validate_mutation(cls, user, **data):
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
-        # Produit des invoices : c'est le droit de creation d'invoice (155102, partage
-        # avec le module invoice pour la meme action) et non un droit de contrat.
-        # ContractToInvoiceService.create_invoice ne verifie rien de son cote.
+        # Produces invoices: this is the invoice creation right (155102, shared with
+        # the invoice module for the same action) and not a contract right.
+        # ContractToInvoiceService.create_invoice checks nothing on its side.
         if not user.has_perms(ContractConfig.gql_invoice_create_perms):
             raise PermissionDenied(_("unauthorized"))
 
