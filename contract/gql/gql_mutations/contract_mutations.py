@@ -154,6 +154,11 @@ class ContractCreateInvoiceBulkMutation(
         Contract, ContractGQLType, "extended_filters", {}
     )
     def async_mutate(cls, user, **data):
+        # Appel explicite : cette mutation redefinit `async_mutate`, or c'est la
+        # version de BaseMutation qui appelle normalement `_validate_mutation`. Sans
+        # cette ligne, le controle du mixin n'est jamais execute - et rien en aval ne
+        # verifie de droit, `ContractToInvoiceService.create_invoice` compris.
+        cls._validate_mutation(user, **data)
         if "client_mutation_id" in data:
             data.pop("client_mutation_id")
         if "client_mutation_label" in data:

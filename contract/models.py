@@ -108,6 +108,21 @@ class Contract(core_models.HistoryBusinessModel):
         ]
 
 
+    @classmethod
+    def get_rights(cls, action):
+        """
+        Les droits régissant une action sur cette entité, pour GraphQL, REST et FHIR.
+
+        Ne redéclare rien : la table des droits est `contract.apps.DJANGO_PERMS`, par
+        entité puis par action, et `configured_perms` y lit la valeur *configurée* -
+        celle que ModuleConfiguration a pu surcharger - et non le défaut déclaré. Ce
+        modèle n'est que le point d'accès, comme `get_queryset` l'est pour les lignes.
+        """
+        from contract.apps import configured_perms
+
+        return configured_perms("contract", action)
+
+
 class ContractDetailsManager(models.Manager):
     def filter(self, *args, **kwargs):
         keys = [x for x in kwargs if "itemsvc" in x]
@@ -118,6 +133,14 @@ class ContractDetailsManager(models.Manager):
 
 
 class ContractDetails(core_models.HistoryModel):
+    # A line of a contract is not an object anyone holds rights on separately: editing
+    # one is editing that contract. `scope_parent` says which of the three foreign
+    # keys below is the owner, so `core.rights_scope` can find the contract's rights
+    # instead of this model needing its own. It has to be declared - insuree and
+    # contribution_plan_bundle are just as much foreign keys, and neither governs who
+    # may change a contract line.
+    scope_parent = "contract"
+
     contract = models.ForeignKey(
         Contract, db_column="ContractUUID", on_delete=models.deletion.CASCADE
     )
