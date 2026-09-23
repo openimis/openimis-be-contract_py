@@ -84,8 +84,8 @@ DEFAULT_CFG = {
 
 class ContractConfig(AppConfig):
     name = MODULE_NAME
-    # Droits: constantes issues de DJANGO_PERMS, plus surchargeables. Ils ne
-    # passent plus par le DEFAULT_CFG ni par ready().
+    # Rights: constants derived from DJANGO_PERMS, no longer overridable. They go
+    # neither through DEFAULT_CFG nor through ready().
     gql_query_contract_perms = RIGHTS.perms("contract", "query")
     gql_query_contract_admins_perms = RIGHTS.perms("contract", "queryAdmins")
     gql_mutation_create_contract_perms = RIGHTS.perms("contract", "create")

@@ -111,12 +111,13 @@ class Contract(core_models.HistoryBusinessModel):
     @classmethod
     def get_rights(cls, action):
         """
-        Les droits régissant une action sur cette entité, pour GraphQL, REST et FHIR.
+        The rights governing an action on this entity, for GraphQL, REST and FHIR.
 
-        Ne redéclare rien : la table des droits est `contract.apps.DJANGO_PERMS`, par
-        entité puis par action, et `configured_perms` y lit la valeur *configurée* -
-        celle que ModuleConfiguration a pu surcharger - et non le défaut déclaré. Ce
-        modèle n'est que le point d'accès, comme `get_queryset` l'est pour les lignes.
+        Redeclares nothing: the rights table is `contract.apps.DJANGO_PERMS`, by entity
+        then by action, and `configured_perms` reads the *configured* value there -
+        the one ModuleConfiguration may have overridden - and not the declared
+        default. This model is only the access point, as `get_queryset` is for the
+        rows.
         """
         from contract.apps import configured_perms
 
