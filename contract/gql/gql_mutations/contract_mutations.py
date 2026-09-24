@@ -156,8 +156,8 @@ class ContractCreateInvoiceBulkMutation(
     def async_mutate(cls, user, **data):
         # An explicit call: this mutation redefines `async_mutate`, and BaseMutation's
         # version is the one that normally calls `_validate_mutation`. Without this
-        # line the mixin's check is never run - and nothing downstream
-        # verifie de droit, `ContractToInvoiceService.create_invoice` compris.
+        # line the mixin's check is never run - and nothing downstream checks a
+        # right, `ContractToInvoiceService.create_invoice` included.
         cls._validate_mutation(user, **data)
         if "client_mutation_id" in data:
             data.pop("client_mutation_id")
