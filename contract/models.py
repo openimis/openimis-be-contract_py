@@ -2,9 +2,7 @@ from contribution.models import Premium
 from contribution_plan.models import ContributionPlan, ContributionPlanBundle
 from core import fields
 from core import models as core_models
-from django.conf import settings
 from django.db import models
-from graphql import ResolveInfo
 from insuree.models import Insuree
 from policy.models import Policy
 from policyholder.models import PolicyHolder
@@ -141,6 +139,8 @@ class ContractDetails(core_models.HistoryModel):
     # contribution_plan_bundle are just as much foreign keys, and neither governs who
     # may change a contract line.
     scope_parent = "contract"
+    # As visible as its contract, hence as its policy holder.
+    row_scope = core_models.ParentScope("contract")
 
     contract = models.ForeignKey(
         Contract, db_column="ContractUUID", on_delete=models.deletion.CASCADE
@@ -160,14 +160,8 @@ class ContractDetails(core_models.HistoryModel):
 
     @classmethod
     def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
-        if isinstance(user, ResolveInfo):
-            user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        if settings.ROW_SECURITY:
-            pass
-        return queryset
+        # Validity first, then `row_scope` via the mixin.
+        return super().get_queryset(cls.filter_queryset(queryset), user)
 
     class Meta:
         db_table = "tblContractDetails"
@@ -185,6 +179,8 @@ class ContractContributionPlanDetailsManager(models.Manager):
 
 
 class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
+    row_scope = core_models.ParentScope("contract_details")
+
     contribution_plan = models.ForeignKey(
         ContributionPlan,
         db_column="ContributionPlanUUID",
@@ -218,14 +214,8 @@ class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
 
     @classmethod
     def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
-        if isinstance(user, ResolveInfo):
-            user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        if settings.ROW_SECURITY:
-            pass
-        return queryset
+        # Validity first, then `row_scope` via the mixin.
+        return super().get_queryset(cls.filter_queryset(queryset), user)
 
     class Meta:
         db_table = "tblContractContributionPlanDetails"

@@ -19,7 +19,7 @@ from contract.models import (
 from core.gql import ScopedQuerysetMixin
 
 
-class ContractGQLType(DjangoObjectType):
+class ContractGQLType(ScopedQuerysetMixin, DjangoObjectType):
     contract_details = graphene.List(lambda: ContractDetailsGQLType)
     contract_contribution_plan_details = graphene.List(
         lambda: ContractContributionPlanDetailsGQLType
@@ -48,10 +48,6 @@ class ContractGQLType(DjangoObjectType):
         }
 
         connection_class = ExtendedRelayConnection
-
-        @classmethod
-        def get_queryset(cls, queryset, info):
-            return Contract.get_queryset(queryset, info)
 
     def resolve_contract_details(self, info):
         loader = getattr(info.context, "dataloaders", {}).get(
@@ -82,7 +78,7 @@ class ContractGQLType(DjangoObjectType):
     # amount = graphene.Float()
 
 
-class ContractDetailsGQLType(DjangoObjectType):
+class ContractDetailsGQLType(ScopedQuerysetMixin, DjangoObjectType):
 
     class Meta:
         model = ContractDetails
@@ -103,12 +99,8 @@ class ContractDetailsGQLType(DjangoObjectType):
 
         connection_class = ExtendedConnection
 
-        @classmethod
-        def get_queryset(cls, queryset, info):
-            return ContractDetails.get_queryset(queryset, info)
 
-
-class ContractContributionPlanDetailsGQLType(DjangoObjectType):
+class ContractContributionPlanDetailsGQLType(ScopedQuerysetMixin, DjangoObjectType):
 
     class Meta:
         model = ContractContributionPlanDetails
@@ -129,10 +121,6 @@ class ContractContributionPlanDetailsGQLType(DjangoObjectType):
         }
 
         connection_class = ExtendedConnection
-
-        @classmethod
-        def get_queryset(cls, queryset, info):
-            return ContractContributionPlanDetails.get_queryset(queryset, info)
 
 
 class ContractMutationGQLType(ScopedQuerysetMixin, DjangoObjectType):
