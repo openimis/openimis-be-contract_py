@@ -2,9 +2,7 @@ from contribution.models import Premium
 from contribution_plan.models import ContributionPlan, ContributionPlanBundle
 from core import fields
 from core import models as core_models
-from django.conf import settings
 from django.db import models
-from graphql import ResolveInfo
 from insuree.models import Insuree
 from policy.models import Policy
 from policyholder.models import PolicyHolder
@@ -20,6 +18,18 @@ class ContractManager(models.Manager):
 
 
 class Contract(core_models.HistoryBusinessModel):
+    # A contract is exactly as visible as the policy holder it is written for:
+    # that holder owns the location this data hangs off. Nullable on purpose --
+    # a contract with no holder has nothing to narrow it by, so it stays
+    # visible, the same way a null location does.
+    # TODO: `policy_holder` should become a GenericForeignKey (`subject`), so a
+    # contract can be held by whatever the deployment contracts with -- a
+    # PolicyHolder today, an Individual or a Group tomorrow -- instead of one
+    # hardcoded model. At that point this becomes `GenericScope("subject")`,
+    # which scopes through whichever subject type is stored and already keeps
+    # subject-less rows visible, so the rule below does not change meaning.
+    row_scope = core_models.ParentScope("policy_holder", allow_null=True)
+
     code = models.CharField(db_column="Code", max_length=64, null=False)
     policy_holder = models.ForeignKey(
         PolicyHolder,
@@ -66,14 +76,9 @@ class Contract(core_models.HistoryBusinessModel):
 
     @classmethod
     def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
-        if isinstance(user, ResolveInfo):
-            user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        if settings.ROW_SECURITY:
-            pass
-        return queryset
+        # Validity first, then `row_scope` via the mixin: the row security
+        # itself is declared above, not restated here.
+        return super().get_queryset(cls.filter_queryset(queryset), user)
 
     class Meta:
         db_table = "tblContract"
@@ -101,6 +106,22 @@ class Contract(core_models.HistoryBusinessModel):
         ]
 
 
+    @classmethod
+    def get_rights(cls, action):
+        """
+        The rights governing an action on this entity, for GraphQL, REST and FHIR.
+
+        Redeclares nothing: the rights table is `contract.apps.DJANGO_PERMS`, by entity
+        then by action, and `configured_perms` reads the *configured* value there -
+        the one ModuleConfiguration may have overridden - and not the declared
+        default. This model is only the access point, as `get_queryset` is for the
+        rows.
+        """
+        from contract.apps import configured_perms
+
+        return configured_perms("contract", action)
+
+
 class ContractDetailsManager(models.Manager):
     def filter(self, *args, **kwargs):
         keys = [x for x in kwargs if "itemsvc" in x]
@@ -111,6 +132,16 @@ class ContractDetailsManager(models.Manager):
 
 
 class ContractDetails(core_models.HistoryModel):
+    # A line of a contract is not an object anyone holds rights on separately: editing
+    # one is editing that contract. `scope_parent` says which of the three foreign
+    # keys below is the owner, so `core.rights_scope` can find the contract's rights
+    # instead of this model needing its own. It has to be declared - insuree and
+    # contribution_plan_bundle are just as much foreign keys, and neither governs who
+    # may change a contract line.
+    scope_parent = "contract"
+    # As visible as its contract, hence as its policy holder.
+    row_scope = core_models.ParentScope("contract")
+
     contract = models.ForeignKey(
         Contract, db_column="ContractUUID", on_delete=models.deletion.CASCADE
     )
@@ -129,14 +160,8 @@ class ContractDetails(core_models.HistoryModel):
 
     @classmethod
     def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
-        if isinstance(user, ResolveInfo):
-            user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        if settings.ROW_SECURITY:
-            pass
-        return queryset
+        # Validity first, then `row_scope` via the mixin.
+        return super().get_queryset(cls.filter_queryset(queryset), user)
 
     class Meta:
         db_table = "tblContractDetails"
@@ -154,6 +179,8 @@ class ContractContributionPlanDetailsManager(models.Manager):
 
 
 class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
+    row_scope = core_models.ParentScope("contract_details")
+
     contribution_plan = models.ForeignKey(
         ContributionPlan,
         db_column="ContributionPlanUUID",
@@ -187,20 +214,16 @@ class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
 
     @classmethod
     def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
-        if isinstance(user, ResolveInfo):
-            user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        if settings.ROW_SECURITY:
-            pass
-        return queryset
+        # Validity first, then `row_scope` via the mixin.
+        return super().get_queryset(cls.filter_queryset(queryset), user)
 
     class Meta:
         db_table = "tblContractContributionPlanDetails"
 
 
 class ContractMutation(core_models.UUIDModel, core_models.ObjectMutation):
+    row_scope = core_models.ParentScope("contract")
+
     contract = models.ForeignKey(Contract, models.DO_NOTHING, related_name="mutations")
     mutation = models.ForeignKey(
         core_models.MutationLog, models.DO_NOTHING, related_name="contracts"
@@ -212,6 +235,8 @@ class ContractMutation(core_models.UUIDModel, core_models.ObjectMutation):
 
 
 class ContractDetailsMutation(core_models.UUIDModel, core_models.ObjectMutation):
+    row_scope = core_models.ParentScope("contract_detail")
+
     contract_detail = models.ForeignKey(
         ContractDetails, models.DO_NOTHING, related_name="mutations"
     )

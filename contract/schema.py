@@ -7,7 +7,10 @@ from core.schema import (
 )
 from core.utils import append_validity_filter
 from core.services import wait_for_mutation
+from django.core.exceptions import PermissionDenied
 from django.db.models import Q
+from django.utils.translation import gettext as _
+from policyholder.models import PolicyHolder
 
 from contract.apps import ContractConfig
 from contract.gql.gql_mutations.contract_details_mutations import (
@@ -43,6 +46,20 @@ from contract.models import (
 from contract.utils import filter_amount_contract
 
 from .services import check_unique_code
+
+
+def _portal_filters(user, prefix):
+    """Check the contract right, and return the filters the portal variant implies.
+
+    The back-office right reads every contract the model's row security allows.
+    The policy holder portal right reads only the contracts of the policy holders
+    the user is attached to.
+    """
+    if user.has_perms(ContractConfig.gql_query_contract_perms):
+        return []
+    if user.has_perms(ContractConfig.gql_query_contract_policyholder_portal_perms):
+        return PolicyHolder.filter_membership(user, prefix=prefix)
+    raise PermissionDenied(_("unauthorized"))
 
 
 class Query(graphene.ObjectType):
@@ -91,13 +108,8 @@ class Query(graphene.ObjectType):
             return ValidationMessageGQLType(True)
 
     def resolve_contract(self, info, **kwargs):
-        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
-            if not info.context.user.has_perms(
-                ContractConfig.gql_query_contract_policyholder_portal_perms
-            ):
-                raise PermissionError("Unauthorized")
-
-        filters = append_validity_filter(**kwargs)
+        filters = _portal_filters(info.context.user, prefix="policy_holder__")
+        filters += append_validity_filter(**kwargs)
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
             wait_for_mutation(client_mutation_id)
@@ -114,16 +126,11 @@ class Query(graphene.ObjectType):
         amount_to = kwargs.get("amount_to", None)
         if amount_from or amount_to:
             filters.append(filter_amount_contract(**kwargs))
-        return gql_optimizer.query(Contract.objects.filter(*filters).all(), info)
+        query = Contract.get_queryset(Contract.objects.all(), info)
+        return gql_optimizer.query(query.filter(*filters), info)
 
     def resolve_contract_details(self, info, **kwargs):
-        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
-            if not info.context.user.has_perms(
-                ContractConfig.gql_query_contract_policyholder_portal_perms
-            ):
-                raise PermissionError("Unauthorized")
-
-        filters = []
+        filters = _portal_filters(info.context.user, prefix="contract__policy_holder__")
         client_mutation_id = kwargs.get("client_mutation_id", None)
         if client_mutation_id:
             wait_for_mutation(client_mutation_id)
@@ -131,16 +138,15 @@ class Query(graphene.ObjectType):
                 Q(mutations__mutation__client_mutation_id=client_mutation_id)
             )
 
-        return gql_optimizer.query(ContractDetails.objects.filter(*filters).all(), info)
+        query = ContractDetails.get_queryset(ContractDetails.objects.all(), info)
+        return gql_optimizer.query(query.filter(*filters), info)
 
     def resolve_contract_contribution_plan_details(self, info, **kwargs):
-        if not info.context.user.has_perms(ContractConfig.gql_query_contract_perms):
-            if not info.context.user.has_perms(
-                ContractConfig.gql_query_contract_policyholder_portal_perms
-            ):
-                raise PermissionError("Unauthorized")
+        portal_filters = _portal_filters(info.context.user, prefix="contract_details__contract__policy_holder__")
 
-        query = ContractContributionPlanDetails.objects.all()
+        query = ContractContributionPlanDetails.get_queryset(
+            ContractContributionPlanDetails.objects.all(), info
+        ).filter(*portal_filters)
 
         insuree = kwargs.get("insuree", None)
         contribution_plan_bundle = kwargs.get("contributionPlanBundle", None)

@@ -3,6 +3,9 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.forms.models import model_to_dict
 from django.utils.translation import gettext as _
+from django.core.exceptions import PermissionDenied
+from core.rights_scope import has_model_right
+from contract.apps import ContractConfig
 
 from contract.models import Contract, ContractMutation
 from contract.services import (
@@ -287,6 +290,12 @@ class ContractDetailsFromPHInsureeMutationMixin:
     def _validate_mutation(cls, user, **data):
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
+        # Creates ContractDetails, which declare scope_parent = "contract": the right
+        # is therefore that of creating on the contract. Previously only
+        # authentication was required, here as in the service called
+        # (ContractDetails.get_details_from_ph_insuree checks nothing).
+        if not has_model_right(user, cls._model, "create"):
+            raise PermissionDenied(_("unauthorized"))
 
     @classmethod
     def _mutate(cls, user, **data):
@@ -354,6 +363,11 @@ class ContractCreateInvoiceMutationMixin:
     def _validate_mutation(cls, user, **data):
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
+        # Produces invoices: this is the invoice creation right (155102, shared with
+        # the invoice module for the same action) and not a contract right.
+        # ContractToInvoiceService.create_invoice checks nothing on its side.
+        if not user.has_perms(ContractConfig.gql_invoice_create_perms):
+            raise PermissionDenied(_("unauthorized"))
 
     @classmethod
     def _mutate(cls, user, **data):

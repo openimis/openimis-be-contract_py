@@ -60,6 +60,15 @@ Another payments are omitted in processing.
   - create (with creating payment details for that newly created payment)
   - collect_payment_details (collect data from all contributions to assign it to the payment details)
 
+## Row security
+
+`Contract` declares `ParentScope("policy_holder")`, `ContractDetails`
+`ParentScope("contract")` and `ContractContributionPlanDetails`
+`ParentScope("contract_details")`: every row is as visible as its policy holder
+(see the policyholder module). With only the policy holder portal right
+(`gql_query_contract_policyholder_portal_perms`), the contract queries are further
+restricted to the policy holders the user is attached to.
+
 ## Configuration options (can be changed via core.ModuleConfiguration)
 * gql_query_contract_perms: required rights to call createContract GraphQL Query (default: ["152101"])
 * gql_query_contract_admins_perms: required rights to call contribution_plan_bundle_admin GraphQL Query (default: [])

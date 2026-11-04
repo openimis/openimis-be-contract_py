@@ -13,6 +13,9 @@ from contract.gql.gql_mutations.input_types import (
     ContractDetailsUpdateInputType,
 )
 from contract.models import ContractDetails, ContractDetailsMutation
+from core.rights_scope import has_model_right
+from django.core.exceptions import PermissionDenied
+from django.utils.translation import gettext as _
 
 from .mutations import ContractDetailsFromPHInsureeMutationMixin
 
@@ -21,6 +24,16 @@ class CreateContractDetailsMutation(BaseHistoryModelCreateMutationMixin, BaseMut
     _mutation_class = "ContractDetailsMutation"
     _mutation_module = "contract"
     _model = ContractDetails
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        super()._validate_mutation(user, **data)
+        # ContractDetails declares scope_parent = "contract", so this resolves to the
+        # contract's own create right. Until now these three mutations overrode
+        # nothing, which left them on the base mixin's check - authentication only -
+        # so any logged-in user could add, edit or remove the lines of any contract.
+        if not has_model_right(user, cls._model, "create"):
+            raise PermissionDenied(_("unauthorized"))
 
     @classmethod
     def _mutate(cls, user, **data):
@@ -44,6 +57,16 @@ class UpdateContractDetailsMutation(BaseHistoryModelUpdateMutationMixin, BaseMut
     _mutation_module = "contract"
     _model = ContractDetails
 
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        super()._validate_mutation(user, **data)
+        # ContractDetails declares scope_parent = "contract", so this resolves to the
+        # contract's own update right. Until now these three mutations overrode
+        # nothing, which left them on the base mixin's check - authentication only -
+        # so any logged-in user could add, edit or remove the lines of any contract.
+        if not has_model_right(user, cls._model, "update"):
+            raise PermissionDenied(_("unauthorized"))
+
     class Input(ContractDetailsUpdateInputType):
         pass
 
@@ -54,6 +77,16 @@ class DeleteContractDetailsMutation(
     _mutation_class = "ContractDetailsMutation"
     _mutation_module = "contract"
     _model = ContractDetails
+
+    @classmethod
+    def _validate_mutation(cls, user, **data):
+        super()._validate_mutation(user, **data)
+        # ContractDetails declares scope_parent = "contract", so this resolves to the
+        # contract's own delete right. Until now these three mutations overrode
+        # nothing, which left them on the base mixin's check - authentication only -
+        # so any logged-in user could add, edit or remove the lines of any contract.
+        if not has_model_right(user, cls._model, "delete"):
+            raise PermissionDenied(_("unauthorized"))
 
     class Input(DeleteInputType):
         pass
