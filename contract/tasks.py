@@ -32,7 +32,8 @@ def create_invoice_from_contracts(user_id, contracts):
     user = User.objects.get(id=user_id)
     contract_service = ContractToInvoiceService(user=user)
     for contract in contracts:
-        contract_instance = Contract.objects.filter(id=contract)
+        # Scoped by the requesting user, who is the one the mutation authorised.
+        contract_instance = Contract.get_queryset(Contract.objects.filter(id=contract), user)
         if contract_instance:
             contract_instance = contract_instance.first()
             ccpd_list = ContractContributionPlanDetails.objects.filter(

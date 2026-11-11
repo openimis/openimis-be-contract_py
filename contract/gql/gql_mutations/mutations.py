@@ -17,6 +17,22 @@ from contract.services import (
 )
 
 
+def _scoped_contract_ids(user, ids):
+    """The ids, among ``ids``, of the contracts ``user`` may act on.
+
+    The bulk mutations receive either client-sent ids or the ids the core filter
+    decorator found with ``Contract.objects``; both are narrowed here, before
+    anything is dispatched, so a bulk action never reaches a contract the user
+    cannot read. The services check each contract again.
+    """
+    if hasattr(ids, "values_list"):
+        ids = ids.values_list("id", flat=True)
+    return list(
+        Contract.get_queryset(Contract.objects.filter(id__in=list(ids)), user)
+        .values_list("id", flat=True)
+    )
+
+
 class ContractCreateMutationMixin:
 
     @property
@@ -158,6 +174,10 @@ class ContractApproveMutationMixin:
     def _validate_mutation(cls, user, **data):
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
+        # Checked here as well as in the service, so a bulk request without the
+        # right is refused outright instead of failing contract by contract.
+        if not user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+            raise PermissionDenied(_("unauthorized"))
 
     @classmethod
     def _mutate(cls, user, **data):
@@ -189,6 +209,10 @@ class ContractCounterMutationMixin:
     def _validate_mutation(cls, user, **data):
         if type(user) is AnonymousUser or not user.id:
             raise ValidationError("mutation.authentication_required")
+        # Checked here as well as in the service, so a bulk request without the
+        # right is refused outright instead of failing contract by contract.
+        if not user.has_perms(ContractConfig.gql_mutation_approve_ask_for_change_contract_perms):
+            raise PermissionDenied(_("unauthorized"))
 
     @classmethod
     def _mutate(cls, user, **data):
@@ -314,7 +338,11 @@ class ContractDetailsFromPHInsureeMutationMixin:
     def create_cd_from_ph_insuree(cls, user, data):
         contract_details_service = ContractDetailsService(user=user)
         try:
-            contract = Contract.get(id=f'{data["contract_id"]}')
+            contract = Contract.get_queryset(
+                Contract.objects.filter(id=data["contract_id"]), user
+            ).first()
+            if not contract:
+                raise Exception(_("No contract found for this id %s") % data["contract_id"])
             if contract.state not in [
                     Contract.STATE_DRAFT,
                     Contract.STATE_REQUEST_FOR_INFORMATION,
@@ -325,12 +353,16 @@ class ContractDetailsFromPHInsureeMutationMixin:
                         "You cannot update contract by adding insuree - contract not in updatable state!"
                     )
                 )
-            contract_details = contract_details_service.get_details_from_ph_insuree(
+            # `ph_insuree` is a list: a bare id would be ignored by the service and
+            # every insuree of the policy holder would be added instead.
+            result = contract_details_service.get_details_from_ph_insuree(
                 contract,
-                ph_insuree_id=data["policy_holder_insuree_id"]
+                ph_insuree=[data["policy_holder_insuree_id"]]
             )
+            if not result["success"]:
+                return result
             dict_representation = []
-            for cd in contract_details:
+            for cd in result["data"]:
                 uuid_string = f"{cd.id}"
                 record = model_to_dict(cd)
                 record["id"], record["uuid"] = (
@@ -338,6 +370,7 @@ class ContractDetailsFromPHInsureeMutationMixin:
                     uuid_string,
                 )
                 dict_representation.append(record)
+            if dict_representation:
                 return _output_result_success(dict_representation)
             else:
                 raise Exception(
@@ -383,7 +416,7 @@ class ContractCreateInvoiceMutationMixin:
 
     @classmethod
     def create_contract_invoice(cls, user, data):
-        queryset = Contract.objects.filter(id=data["id"])
+        queryset = Contract.get_queryset(Contract.objects.filter(id=data["id"]), user)
         if queryset.count() == 1:
             contract = queryset.first()
             contract_to_invoice_service = ContractToInvoiceService(user=user)

@@ -69,6 +69,15 @@ Another payments are omitted in processing.
 (`gql_query_contract_policyholder_portal_perms`), the contract queries are further
 restricted to the policy holders the user is attached to.
 
+Writes follow the same rule. The `Contract` services, the bulk mutations
+(`approveBulkContract`, `counterBulkContract`, `createContractInvoiceBulk`) and the
+contract line mutations look their targets up through `Contract.get_queryset`, so a
+contract the user cannot read cannot be changed either. A contract line also needs an
+insuree enrolled with the contract's policy holder (`PolicyHolderInsuree`), or one the
+user may read when the contract has no policy holder. `updateContract` ignores the
+computed fields (`amountNotified`, `amountRectified`, `amountDue`, `dateApproved`,
+`amendment`, `state`): the workflow sets them.
+
 ## Configuration options (can be changed via core.ModuleConfiguration)
 * gql_query_contract_perms: required rights to call createContract GraphQL Query (default: ["152101"])
 * gql_query_contract_admins_perms: required rights to call contribution_plan_bundle_admin GraphQL Query (default: [])
