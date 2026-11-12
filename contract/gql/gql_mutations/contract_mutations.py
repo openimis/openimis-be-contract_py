@@ -36,6 +36,7 @@ from .mutations import (
     ContractRenewMutationMixin,
     ContractSubmitMutationMixin,
     ContractUpdateMutationMixin,
+    _scoped_contract_ids,
 )
 
 
@@ -94,6 +95,9 @@ class ApproveContractBulkMutation(ContractApproveMutationMixin, BaseMutation):
         Contract, ContractGQLType, "extended_filters", {}
     )
     def async_mutate(cls, user, **data):
+        # Explicit, as in ContractCreateInvoiceBulkMutation: redefining
+        # `async_mutate` skips BaseMutation's call to `_validate_mutation`.
+        cls._validate_mutation(user, **data)
         error_message = None
         if "client_mutation_id" in data:
             data.pop("client_mutation_id")
@@ -121,12 +125,12 @@ class ApproveContractBulkMutation(ContractApproveMutationMixin, BaseMutation):
     def approve_contracts(cls, user, contracts):
 
         if "uuids" in contracts:
-            contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
+            contracts["uuids"] = _scoped_contract_ids(user, contracts["uuids"])
             return approve_contracts(user_id=f"{user.id}", contracts=contracts["uuids"])
         else:
             if "contract_uuids" in contracts:
                 return approve_contracts(
-                    user_id=f"{user.id}", contracts=contracts["contract_uuids"]
+                    user_id=f"{user.id}", contracts=_scoped_contract_ids(user, contracts["contract_uuids"])
                 )
 
     class Input(ContractApproveBulkInputType):
@@ -170,14 +174,14 @@ class ContractCreateInvoiceBulkMutation(
     @classmethod
     def create_contract_invoice(cls, user, contracts):
         if "uuids" in contracts:
-            contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
+            contracts["uuids"] = _scoped_contract_ids(user, contracts["uuids"])
             return create_invoice_from_contracts(
                 user_id=f"{user.id}", contracts=contracts["uuids"]
             )
         else:
             if "contract_uuids" in contracts:
                 return create_invoice_from_contracts(
-                    user_id=f"{user.id}", contracts=contracts["contract_uuids"]
+                    user_id=f"{user.id}", contracts=_scoped_contract_ids(user, contracts["contract_uuids"])
                 )
 
     class Input(ContractCreateInvoiceBulkInputType):
@@ -194,6 +198,9 @@ class CounterContractBulkMutation(ContractCounterMutationMixin, BaseMutation):
         Contract, ContractGQLType, "extended_filters", {}
     )
     def async_mutate(cls, user, **data):
+        # Explicit, as in ContractCreateInvoiceBulkMutation: redefining
+        # `async_mutate` skips BaseMutation's call to `_validate_mutation`.
+        cls._validate_mutation(user, **data)
         if "client_mutation_id" in data:
             data.pop("client_mutation_id")
         if "client_mutation_label" in data:
@@ -205,12 +212,12 @@ class CounterContractBulkMutation(ContractCounterMutationMixin, BaseMutation):
     @classmethod
     def counter_contracts(cls, user, contracts):
         if "uuids" in contracts:
-            contracts["uuids"] = list(contracts["uuids"].values_list("id", flat=True))
+            contracts["uuids"] = _scoped_contract_ids(user, contracts["uuids"])
             return counter_contracts(user_id=f"{user.id}", contracts=contracts["uuids"])
         else:
             if "contract_uuids" in contracts:
                 return counter_contracts(
-                    user_id=f"{user.id}", contracts=contracts["contract_uuids"]
+                    user_id=f"{user.id}", contracts=_scoped_contract_ids(user, contracts["contract_uuids"])
                 )
 
     class Input(ContractCounterBulkInputType):

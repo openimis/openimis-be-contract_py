@@ -63,8 +63,36 @@ def check_authentication(function):
 
 class Contract(object):
 
+    # Computed by the workflow (valuation, submission, approval, amendment), never
+    # taken from the client on update: a caller able to edit a draft must not be
+    # able to set what it will be charged or when it was approved.
+    PROTECTED_UPDATE_FIELDS = (
+        "amount_notified",
+        "amount_rectified",
+        "amount_due",
+        "date_approved",
+        "amendment",
+        "state",
+    )
+
     def __init__(self, user):
         self.user = user
+
+    def _scoped_contracts(self):
+        """The contracts this user may act on: the ones they may read."""
+        return ContractModel.get_queryset(ContractModel.objects.all(), self.user)
+
+    def _get_contract(self, contract_id):
+        contract = self._scoped_contracts().filter(id=contract_id).first()
+        if not contract:
+            raise ContractUpdateError(_("No contract found for this id %s") % contract_id)
+        return contract
+
+    def _check_policy_holder_in_scope(self, policy_holder_id):
+        if policy_holder_id and not PolicyHolder.get_queryset(
+            PolicyHolder.objects.filter(id=policy_holder_id, is_deleted=False), self.user
+        ).exists():
+            raise PermissionError(_("Unauthorized"))
 
     @check_authentication
     def create(self, contract):
@@ -86,6 +114,7 @@ class Contract(object):
                 "date_valid_from", None
             ):
                 raise Exception(_("contract.mandatory_fields.date_valid"))
+            self._check_policy_holder_in_scope(contract.get("policy_holder_id"))
             c = ContractModel(**contract)
             if c.date_valid_to < c.date_valid_from:
                 raise Exception(_("contract.validation.date_valid"))
@@ -156,7 +185,7 @@ class Contract(object):
 
             ):
                 raise PermissionError("Unauthorized")
-            updated_contract = ContractModel.objects.filter(id=contract["id"]).first()
+            updated_contract = self._get_contract(contract["id"])
             # updatable scenario
             if self.__check_rights_by_status(updated_contract.state) == "updatable":
                 if "code" in contract:
@@ -202,7 +231,13 @@ class Contract(object):
     def __update_contract_fields(self, contract_input, updated_contract):
         # get the current policy_holder value
         current_policy_holder_id = updated_contract.policy_holder_id
-        [setattr(updated_contract, key, contract_input[key]) for key in contract_input]
+        if contract_input.get("policy_holder_id"):
+            self._check_policy_holder_in_scope(contract_input["policy_holder_id"])
+        for key, value in contract_input.items():
+            if key in self.PROTECTED_UPDATE_FIELDS:
+                logger.debug("Contract update ignores the computed field %s", key)
+                continue
+            setattr(updated_contract, key, value)
         # check if PH is set and not changed
         if current_policy_holder_id:
             if "policy_holder" in updated_contract.get_dirty_fields(
@@ -242,11 +277,7 @@ class Contract(object):
                 raise PermissionError("Unauthorized")
 
             contract_id = f"{contract['id']}"
-            contract_to_submit = ContractModel.objects.filter(id=contract_id).first()
-            if not contract_to_submit:
-                raise ContractUpdateError(
-                    _("No contract found for this id %s" % contract["id"])
-                )
+            contract_to_submit = self._get_contract(contract_id)
             contract_to_submit = self.__validate_submission(contract_to_submit=contract_to_submit)
 
             # contract valuation
@@ -305,7 +336,7 @@ class Contract(object):
                 raise PermissionError(_("unauthorized"))
             contract_id = f"{contract['id']}"
             contract_to_approve = (
-                ContractModel.objects.filter(id=contract_id, is_deleted=False)
+                self._scoped_contracts().filter(id=contract_id, is_deleted=False)
                 .order_by("-amendment")
                 .first()
             )
@@ -355,7 +386,7 @@ class Contract(object):
             ):
                 raise PermissionError("Unauthorized")
             contract_id = f"{contract['id']}"
-            contract_to_counter = ContractModel.objects.filter(id=contract_id).first()
+            contract_to_counter = self._get_contract(contract_id)
             # variable to check if we have right to approve
             state_right = self.__check_rights_by_status(contract_to_counter.state)
             # check if we can submit
@@ -400,7 +431,7 @@ class Contract(object):
             ):
                 raise PermissionError("Unauthorized")
             contract_id = f"{contract['id']}"
-            contract_to_amend = ContractModel.objects.filter(id=contract_id).first()
+            contract_to_amend = self._get_contract(contract_id)
             # variable to check if we have right to amend contract
             state_right = self.__check_rights_by_status(contract_to_amend.state)
             # check if we can amend
@@ -479,7 +510,7 @@ class Contract(object):
                 ContractConfig.gql_mutation_renew_contract_perms
             ):
                 raise PermissionError("Unauthorized")
-            contract_to_renew = ContractModel.objects.filter(id=contract["id"]).first()
+            contract_to_renew = self._get_contract(contract["id"])
             contract_id = contract["id"]
             # block renewing contract not in Updateable or Approvable state
             state_right = self.__check_rights_by_status(contract_to_renew.state)
@@ -546,7 +577,7 @@ class Contract(object):
                 ContractConfig.gql_mutation_delete_contract_perms
             ):
                 raise PermissionError(_("unauthorized"))
-            contract_to_delete = ContractModel.objects.filter(id=contract["id"]).first()
+            contract_to_delete = self._get_contract(contract["id"])
             # block deleting contract not in Updateable or Approvable state
             if (
                 self.__check_rights_by_status(contract_to_delete.state)
@@ -708,8 +739,11 @@ class Contract(object):
                 # get the payment from the previous version of the contract
                 contract_detail_id = contract_details_list[0].id
                 cd = ContractDetailsModel.objects.get(id=contract_detail_id)
-                contract_previous = ContractModel.objects.filter(
-                    Q(amendment=amendment - 1, code=cd.contract.code)
+                contract_previous = ContractModel.get_queryset(
+                    ContractModel.objects.filter(
+                        Q(amendment=amendment - 1, code=cd.contract.code)
+                    ),
+                    self.user,
                 ).first()
                 premium = (
                     ContractContributionPlanDetailsModel.objects.filter(
