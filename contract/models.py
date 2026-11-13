@@ -106,7 +106,6 @@ class Contract(core_models.HistoryBusinessModel):
             }),
         ]
 
-
     @classmethod
     def get_rights(cls, action):
         """
