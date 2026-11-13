@@ -111,6 +111,7 @@ class ContractConfig(AppConfig):
     gql_mutation_submit_contract_policyholder_portal_perms = RIGHTS.perms("contractPortal", "submit")
     gql_mutation_amend_contract_policyholder_portal_perms = RIGHTS.perms("contractPortal", "amend")
     gql_invoice_create_perms = RIGHTS.perms("contractInvoice", "create")
+
     def __load_config(self, cfg):
         for field in cfg:
             if hasattr(ContractConfig, field):

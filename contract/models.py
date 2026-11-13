@@ -75,10 +75,11 @@ class Contract(core_models.HistoryBusinessModel):
         return amount
 
     @classmethod
-    def get_queryset(cls, queryset, user):
+    def get_queryset(cls, queryset, user, *, validity=None, audits=None):
         # Validity first, then `row_scope` via the mixin: the row security
         # itself is declared above, not restated here.
-        return super().get_queryset(cls.filter_queryset(queryset), user)
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
+        return super().get_queryset(queryset, user)
 
     class Meta:
         db_table = "tblContract"
@@ -104,7 +105,6 @@ class Contract(core_models.HistoryBusinessModel):
                 f'{prefix}date_valid_to__gte': self.date_valid_from
             }),
         ]
-
 
     @classmethod
     def get_rights(cls, action):
@@ -159,9 +159,10 @@ class ContractDetails(core_models.HistoryModel):
     objects = ContractDetailsManager()
 
     @classmethod
-    def get_queryset(cls, queryset, user):
+    def get_queryset(cls, queryset, user, *, validity=None, audits=None):
         # Validity first, then `row_scope` via the mixin.
-        return super().get_queryset(cls.filter_queryset(queryset), user)
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
+        return super().get_queryset(queryset, user)
 
     class Meta:
         db_table = "tblContractDetails"
@@ -213,9 +214,10 @@ class ContractContributionPlanDetails(core_models.HistoryBusinessModel):
     objects = ContractContributionPlanDetailsManager()
 
     @classmethod
-    def get_queryset(cls, queryset, user):
+    def get_queryset(cls, queryset, user, *, validity=None, audits=None):
         # Validity first, then `row_scope` via the mixin.
-        return super().get_queryset(cls.filter_queryset(queryset), user)
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
+        return super().get_queryset(queryset, user)
 
     class Meta:
         db_table = "tblContractContributionPlanDetails"
