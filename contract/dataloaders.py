@@ -1,7 +1,6 @@
 from collections import defaultdict
 
-from promise import Promise
-from promise.dataloader import DataLoader
+from core.dataloaders import DataLoader
 
 from contract.models import ContractDetails, ContractContributionPlanDetails
 
@@ -20,7 +19,7 @@ class ContractDetailsByContractLoader(DataLoader):
         for detail in details:
             grouped[detail.contract_id].append(detail)
 
-        return Promise.resolve([grouped.get(contract_id, []) for contract_id in contract_ids])
+        return [grouped.get(contract_id, []) for contract_id in contract_ids]
 
 
 class ContributionPlanDetailsByContractLoader(DataLoader):
@@ -44,4 +43,4 @@ class ContributionPlanDetailsByContractLoader(DataLoader):
         for row in rows:
             grouped[row.contract_details.contract_id].append(row)
 
-        return Promise.resolve([grouped.get(contract_id, []) for contract_id in contract_ids])
+        return [grouped.get(contract_id, []) for contract_id in contract_ids]

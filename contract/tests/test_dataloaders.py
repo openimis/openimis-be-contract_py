@@ -51,7 +51,7 @@ class ContractDetailsByContractLoaderTest(TestCase):
         with self.assertNumQueries(1):
             results = ContractDetailsByContractLoader().batch_load_fn(
                 contract_ids
-            ).get()
+            )
 
         self.assertEqual(
             [[detail.id for detail in group] for group in results],
@@ -66,7 +66,7 @@ class ContractDetailsByContractLoaderTest(TestCase):
         with self.assertNumQueries(1):
             results = ContractDetailsByContractLoader().batch_load_fn(
                 [self.first_contract.id]
-            ).get()
+            )
             for detail in results[0]:
                 detail.insuree
                 detail.contribution_plan_bundle
@@ -126,7 +126,7 @@ class ContributionPlanDetailsLoaderTest(TestCase):
         with self.assertNumQueries(1):
             results = ContributionPlanDetailsByContractLoader().batch_load_fn(
                 contract_ids
-            ).get()
+            )
 
         self.assertEqual(
             [[row.id for row in group] for group in results],
@@ -141,7 +141,7 @@ class ContributionPlanDetailsLoaderTest(TestCase):
         with self.assertNumQueries(1):
             results = ContributionPlanDetailsByContractLoader().batch_load_fn(
                 [self.first_contract.id]
-            ).get()
+            )
             for row in results[0]:
                 row.contract_details
                 row.contract_details.insuree
