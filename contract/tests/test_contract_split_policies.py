@@ -34,6 +34,7 @@ class ContractLongerThanInsurancePeriodTest(TestCase):
     expected_amount = Decimal("100")  # income * rate / 100
     date_from = "2026-10-01"
     date_to = "2027-10-19"
+    policy_count = 2
 
     @classmethod
     def setUpTestData(cls):
@@ -110,8 +111,8 @@ class ContractLongerThanInsurancePeriodTest(TestCase):
         print(f"Policies: {policy_summary}")
         print(f"CCPD (policy, from, to, amount, premium): {ccpd_summary}")
 
-        # the contract spans more than one insurance period: two policies
-        self.assertEqual(len(policies), 2, f"policies: {policy_summary}")
+        # the contract spans more than one insurance period: one policy per period
+        self.assertEqual(len(policies), self.policy_count, f"policies: {policy_summary}")
 
         # every Premium created for the contract is positive
         premiums = list(Premium.objects.filter(contract_contribution_plan_details__in=ccpds))
@@ -139,3 +140,82 @@ class ContractLongerThanInsurancePeriodTest(TestCase):
             sorted(p.id for p in policies),
             f"ccpd per policy mismatch; policies: {policy_summary}; ccpd: {ccpd_summary}"
         )
+
+    def _approve(self, code, extra_incomes=()):
+        """
+        Creates, submits and approves a contract for the policy holder; each income of
+        `extra_incomes` adds one more contract detail for the same insuree.
+        """
+        response = self.contract_service.create({
+            "code": code,
+            "policy_holder_id": str(self.policy_holder.id),
+            "date_valid_from": self.date_from,
+            "date_valid_to": self.date_to,
+        })
+        self.assertTrue(response["success"], response)
+        contract = Contract.objects.get(id=response["data"]["id"])
+        for income in extra_incomes:
+            ContractDetails(
+                contract=contract,
+                insuree=self.ph_insuree.insuree,
+                contribution_plan_bundle=self.contribution_plan_bundle,
+                json_ext={"calculation_rule": {"income": income}},
+            ).save(user=self.user)
+        for step in (self.contract_service.submit, self.contract_service.approve):
+            response = step({"id": str(contract.id)})
+            self.assertTrue(response["success"], response)
+        contract.refresh_from_db()
+        self.assertEqual(contract.state, Contract.STATE_EXECUTABLE, "contract not approved")
+        return contract
+
+    def _policies(self):
+        return list(
+            Policy.objects.filter(
+                family=self.ph_insuree.insuree.family,
+                product=self.product,
+                validity_to__isnull=True,
+            ).order_by("start_date")
+        )
+
+    def _assert_value_is_booked_premiums(self, policies):
+        for policy in policies:
+            premiums = sum(
+                p.amount for p in Premium.objects.filter(policy=policy, validity_to__isnull=True)
+            )
+            self.assertIsNotNone(policy.value, f"policy {policy.id} has no value")
+            self.assertGreater(policy.value, 0, f"policy {policy.id} value {policy.value}")
+            self.assertEqual(
+                policy.value, premiums,
+                f"policy {policy.id} value {policy.value} != premiums {premiums}"
+            )
+
+    def test_policies_created_by_contract_have_a_value(self):
+        self._approve("CSPLIT-VALUE")
+        policies = self._policies()
+        self.assertEqual(len(policies), self.policy_count)
+        self._assert_value_is_booked_premiums(policies)
+
+    def test_second_detail_of_the_same_insuree_reuses_the_policies(self):
+        # the second detail's policies are found through the contract, as the
+        # insuree has no InsureePolicy before the contract is paid
+        contract = self._approve("CSPLIT-TWICE", extra_incomes=(3000,))
+        policies = self._policies()
+        self.assertEqual(
+            len(policies), self.policy_count,
+            f"policies: {[(p.id, str(p.start_date), str(p.expiry_date)) for p in policies]}"
+        )
+        self._assert_value_is_booked_premiums(policies)
+        total = sum(
+            c.contribution.amount
+            for c in ContractContributionPlanDetails.objects.filter(
+                contract_details__contract=contract, is_deleted=False
+            )
+        )
+        self.assertEqual(total, self.expected_amount + Decimal(3000 * self.rate / 100))
+
+
+class ContractOverThreeInsurancePeriodsTest(ContractLongerThanInsurancePeriodTest):
+    """The same checks for an 800-day contract, covered by three policies."""
+
+    date_to = "2028-12-09"
+    policy_count = 3
