@@ -15,6 +15,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.core.mail import BadHeaderError, send_mail
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import Sum
 from django.db.models.query import Q
 from django.db import transaction
 from django.forms.models import model_to_dict
@@ -793,6 +794,7 @@ class ContractContributionPlanDetails(object):
         """
 
         date_valid_from = ccpd.date_valid_from
+        date_valid_to = ccpd.date_valid_to
         # get date from strategy
         validity_dates = run_calculation_rules(
             ccpd,
@@ -817,6 +819,12 @@ class ContractContributionPlanDetails(object):
             and validity_dates["expiry_date"]
         ):
             date_valid_to = datetime.date.from_ad_date(validity_dates["expiry_date"])
+        # the strategy may return dates: compare and subtract datetimes only
+        from datetime import time
+        if isinstance(date_valid_from, datetime.date) and not isinstance(date_valid_from, datetime.datetime):
+            date_valid_from = datetime.datetime.combine(date_valid_from, time.min)
+        if isinstance(date_valid_to, datetime.date) and not isinstance(date_valid_to, datetime.datetime):
+            date_valid_to = datetime.datetime.combine(date_valid_to, time.min)
         # get the relevant policy from the related product of contribution plan
         # policy objects get all related to this product
         policies = self.__get_policy(
@@ -825,15 +833,15 @@ class ContractContributionPlanDetails(object):
             date_valid_to=date_valid_to,
             product=ccpd.contribution_plan.benefit_plan,
         )
+        contract_funded = [p for p in policies if self.__is_contract_funded(p)]
         calculated_amount = ccpd.amount
         list_ccpd = []
         amount_booked = 0
         unit_amount = calculated_amount / (date_valid_to - date_valid_from).days
-        i = 0
-        for policy in policies:
+        for i, policy in enumerate(policies, start=1):
+            # one row per policy: the first one is the row given, the next ones copies
             if i > 1:
                 ccpd = ccpd.copy()
-            i += 1
             ccpd.policy = policy
             ccpd.date_valid_from = max(
                 datetime.datetime.fromordinal(policy.effective_date.toordinal()),
@@ -845,29 +853,60 @@ class ContractContributionPlanDetails(object):
             )
 
             if len(policies) == i:
+                # the last policy takes the remainder, so the rounding adds up
                 ccpd.amount = Decimal(str(calculated_amount)) - amount_booked
             else:
-                from datetime import time
-                if isinstance(date_valid_from, datetime.date) and not isinstance(date_valid_from, datetime.datetime):
-                    ccpd.date_valid_from = datetime.datetime.combine(date_valid_from, time.min)
-                if isinstance(date_valid_to, datetime.date) and not isinstance(date_valid_to, datetime.datetime):
-                    ccpd.date_valid_to = datetime.datetime.combine(date_valid_to, time.min)
                 ccpd.amount = round(
                     Decimal((ccpd.date_valid_to - ccpd.date_valid_from).days) * Decimal(str(unit_amount))
                 )
-                amount_booked += ccpd.amount
             ccpd.save(user=self.user)
             amount_booked += ccpd.amount
             list_ccpd.append(ccpd)
+        for policy in contract_funded:
+            self.__set_policy_value(policy)
         return list_ccpd
+
+    @staticmethod
+    def __is_contract_funded(policy):
+        """
+        A policy is paid by contracts when it has no contribution of its own and its
+        value either is not set yet (created for a contract) or comes from contracts.
+        """
+        if Premium.objects.filter(
+            policy=policy,
+            validity_to__isnull=True,
+            contract_contribution_plan_details__isnull=True,
+        ).exists():
+            return False
+        return policy.value is None or ContractContributionPlanDetailsModel.objects.filter(
+            policy=policy, is_deleted=False
+        ).exists()
+
+    @staticmethod
+    def __set_policy_value(policy):
+        # the value of a policy paid by contracts is what the contracts book on it
+        value = ContractContributionPlanDetailsModel.objects.filter(
+            policy=policy,
+            is_deleted=False,
+            contract_details__is_deleted=False,
+        ).aggregate(value=Sum("amount"))["value"]
+        if value is not None and policy.value != value:
+            policy.value = value
+            policy.save()
 
     def __get_policy(self, insuree, date_valid_from, date_valid_to, product):
 
         # get all policies related to the product and insuree
         policies = (
             Policy.objects.filter(
+                # a policy created for a contract has no InsureePolicy until it is paid
+                Q(insuree_policies__insuree=insuree)
+                | Q(
+                    contractcontributionplandetails__contract_details__insuree=insuree,
+                    contractcontributionplandetails__is_deleted=False,
+                ),
                 product=product,
-                insuree_policies__insuree=insuree,
+                validity_to__isnull=True,
                 expiry_date__gte=date_valid_from,
             )
             .order_by("start_date")
